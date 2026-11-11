@@ -1,0 +1,31 @@
+# Blueprint de Render: en el panel de Render, "New > Blueprint" y elegir este repositorio.
+# Costo: web Starter (USD 7) + Postgres Basic 256 MB (USD 6) = USD 13/mes.
+
+services:
+  - type: web
+    name: lmont
+    runtime: node
+    plan: starter
+    region: virginia # la región de Render más cercana a Argentina
+    buildCommand: npm ci --include=dev && npm run build
+    preDeployCommand: npm run db:deploy -w @lmont/api
+    startCommand: npm start
+    healthCheckPath: /api/salud
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lmont-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+
+databases:
+  - name: lmont-db
+    plan: basic-256mb
+    region: virginia
+    postgresMajorVersion: "18"
+    databaseName: lmont
+    user: lmont

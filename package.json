@@ -1,0 +1,31 @@
+{
+  "name": "lmont",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @lmont/api\" \"npm run dev -w @lmont/web\"",
+    "build": "npm run build -w @lmont/web && npm run build -w @lmont/api",
+    "start": "npm run start -w @lmont/api",
+    "test": "npm run test -w @lmont/shared && npm run test -w @lmont/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @lmont/api",
+    "db:seed": "npm run db:seed -w @lmont/api"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "esbuild@0.28.2": true
+  }
+}

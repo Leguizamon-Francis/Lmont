@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+apps/api/src/generated/
+
+# Documentos del cliente (no subir al repositorio)
+ENTREVISTA LMONT.docx
+PROMPT_LMONT.md

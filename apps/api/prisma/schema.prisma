@@ -1,0 +1,50 @@
+// Modelo de datos de L'Mont.
+// Etapa 1: usuarios, vendedores y sesiones. Las tablas de catálogo, stock,
+// ventas, caja, etc. se agregan en las etapas siguientes con nuevas migraciones.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Rol {
+  ADMIN
+  VENDEDOR
+}
+
+/// Usuario que inicia sesión en el sistema (hoy hay uno solo, compartido).
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  usuario      String   @unique
+  nombre       String
+  passwordHash String   @map("password_hash")
+  rol          Rol      @default(ADMIN)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  @@map("usuarios")
+}
+
+/// Persona que atiende y vende. Se elige en cada venta, cambio y gasto.
+model Vendedor {
+  id       Int      @id @default(autoincrement())
+  nombre   String   @unique
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  @@map("vendedores")
+}
+
+/// Sesiones de login (formato de connect-pg-simple).
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+  @@map("session")
+}

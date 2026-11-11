@@ -1,0 +1,57 @@
+# Copia de seguridad diaria de la base de Render a Backblaze B2.
+# Secrets necesarios (Settings > Secrets and variables > Actions):
+#   RENDER_DATABASE_URL   External Database URL de Render
+#   BACKUP_PASSPHRASE     frase para cifrar las copias (guardala en un lugar seguro: sin ella no se pueden restaurar)
+#   B2_KEY_ID, B2_APPLICATION_KEY   clave de aplicación de Backblaze con acceso solo al bucket
+#   B2_BUCKET             nombre del bucket
+#   B2_ENDPOINT           por ejemplo https://s3.us-east-005.backblazeb2.com
+name: Backup base de datos
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # todos los días a las 04:00 (hora Argentina)
+  workflow_dispatch: {} # permite correrlo a mano desde GitHub
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Instalar cliente de PostgreSQL 18
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18
+
+      - name: Generar copia
+        env:
+          DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          FECHA=$(TZ=America/Argentina/Buenos_Aires date +%Y-%m-%d)
+          echo "FECHA=$FECHA" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/18/bin/pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl -f lmont.dump
+          # Verifica que la copia se pueda leer antes de subirla
+          /usr/lib/postgresql/18/bin/pg_restore --list lmont.dump > /dev/null
+          ls -lh lmont.dump
+
+      - name: Cifrar
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 -o "lmont-$FECHA.dump.gpg" lmont.dump
+          rm lmont.dump
+
+      - name: Subir a Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          aws s3 cp "lmont-$FECHA.dump.gpg" "s3://${{ secrets.B2_BUCKET }}/diarias/" --endpoint-url "${{ secrets.B2_ENDPOINT }}"
+          # El día 1 de cada mes se guarda además una copia mensual (se conserva un año)
+          if [ "$(date +%d)" = "01" ]; then
+            aws s3 cp "lmont-$FECHA.dump.gpg" "s3://${{ secrets.B2_BUCKET }}/mensuales/" --endpoint-url "${{ secrets.B2_ENDPOINT }}"
+          fi
