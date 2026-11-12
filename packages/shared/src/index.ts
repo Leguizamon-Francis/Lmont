@@ -7,6 +7,7 @@ export * from './money.js';
 export * from './schemas/comunes.js';
 export * from './schemas/auth.js';
 export * from './schemas/vendedor.js';
+export * from './schemas/catalogo.js';
 
 /** Forma estándar de los errores que devuelve la API. */
 export type ApiError = {

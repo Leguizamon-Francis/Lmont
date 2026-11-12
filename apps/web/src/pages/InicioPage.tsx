@@ -11,8 +11,9 @@ export function InicioPage() {
           Sistema en construcción
         </Typography>
         <Typography color="text.secondary">
-          Ya podés entrar al sistema y cargar los vendedores en Configuración. Las demás secciones del menú se habilitan
-          en las próximas etapas: productos, stock, ventas, promociones, cambios, caja y reportes.
+          Ya podés cargar los productos con sus colores, talles y códigos de barras. En Configuración están los
+          vendedores y las listas de tipos de prenda, talles y colores. Las demás secciones del menú se habilitan en las
+          próximas etapas: stock, ventas, promociones, cambios, caja y reportes.
         </Typography>
       </Paper>
     </Stack>

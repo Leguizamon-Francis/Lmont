@@ -10,6 +10,9 @@ import { errorHandler, HttpError } from './http/errors.js';
 import { requireAuth } from './http/auth.js';
 import { authRouter } from './routes/auth.js';
 import { vendedoresRouter } from './routes/vendedores.js';
+import { coloresRouter, tallesRouter, tiposRouter } from './routes/listas.js';
+import { productosRouter } from './routes/productos.js';
+import { variantesRouter } from './routes/variantes.js';
 
 type Opciones = {
   /** Directorio con el build de React para servirlo (producción). */
@@ -64,6 +67,11 @@ export function createApp(opts: Opciones = {}) {
   api.use('/auth', authRouter);
   api.use(requireAuth);
   api.use('/vendedores', vendedoresRouter);
+  api.use('/tipos', tiposRouter);
+  api.use('/talles', tallesRouter);
+  api.use('/colores', coloresRouter);
+  api.use('/productos', productosRouter);
+  api.use('/variantes', variantesRouter);
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
   app.use('/api', api);
 

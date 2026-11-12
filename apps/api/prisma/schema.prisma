@@ -1,6 +1,7 @@
 // Modelo de datos de L'Mont.
-// Etapa 1: usuarios, vendedores y sesiones. Las tablas de catálogo, stock,
-// ventas, caja, etc. se agregan en las etapas siguientes con nuevas migraciones.
+// Etapa 1: usuarios, vendedores y sesiones.
+// Etapa 2: catálogo (tipos de prenda, talles, colores, productos, variantes e historial de precios).
+// Stock, ventas, caja, etc. se agregan en las etapas siguientes con nuevas migraciones.
 
 generator client {
   provider = "prisma-client"
@@ -47,4 +48,129 @@ model Session {
 
   @@index([expire], map: "IDX_session_expire")
   @@map("session")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo
+// ---------------------------------------------------------------------------
+
+/// Tipo de prenda: Pantalones, Remeras, Chombas, Buzos, etc.
+model TipoPrenda {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  activo    Boolean    @default(true)
+  creadoEn  DateTime   @default(now()) @map("creado_en")
+  productos Producto[]
+
+  @@map("tipos_prenda")
+}
+
+/// Talle de la lista administrable. `orden` define cómo se muestran (S, M, L… / 38, 40…).
+model Talle {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  orden     Int        @default(0)
+  activo    Boolean    @default(true)
+  creadoEn  DateTime   @default(now()) @map("creado_en")
+  variantes Variante[]
+
+  @@map("talles")
+}
+
+/// Color de la lista administrable.
+model Color {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  activo    Boolean    @default(true)
+  creadoEn  DateTime   @default(now()) @map("creado_en")
+  variantes Variante[]
+
+  @@map("colores")
+}
+
+/// Modelo de prenda (por ejemplo "Chino" dentro de Pantalones). Los precios son
+/// los vigentes; cada cambio queda registrado en `precios_historial`.
+model Producto {
+  id            Int               @id @default(autoincrement())
+  tipoId        Int               @map("tipo_id")
+  tipo          TipoPrenda        @relation(fields: [tipoId], references: [id])
+  nombre        String
+  precioCompra  Decimal           @map("precio_compra") @db.Decimal(12, 2)
+  precioVenta   Decimal           @map("precio_venta") @db.Decimal(12, 2)
+  observaciones String?
+  activo        Boolean           @default(true)
+  /// ID del producto en Tienda Nube (para la sincronización de stock).
+  tiendaNubeId  BigInt?           @unique @map("tienda_nube_id")
+  creadoEn      DateTime          @default(now()) @map("creado_en")
+  actualizadoEn DateTime          @updatedAt @map("actualizado_en")
+  variantes     Variante[]
+  precios       PrecioHistorial[]
+
+  @@unique([tipoId, nombre])
+  @@map("productos")
+}
+
+/// Combinación color + talle de un producto. Tiene su propio stock y código de barras.
+model Variante {
+  id                   Int               @id @default(autoincrement())
+  productoId           Int               @map("producto_id")
+  producto             Producto          @relation(fields: [productoId], references: [id])
+  colorId              Int               @map("color_id")
+  color                Color             @relation(fields: [colorId], references: [id])
+  talleId              Int               @map("talle_id")
+  talle                Talle             @relation(fields: [talleId], references: [id])
+  codigoBarras         String?           @unique @map("codigo_barras")
+  /// Nunca negativo (CHECK en la base). Se modifica solo con movimientos de stock.
+  stock                Int               @default(0)
+  stockMinimo          Int               @default(0) @map("stock_minimo")
+  activo               Boolean           @default(true)
+  /// ID de la variante en Tienda Nube (para la sincronización de stock).
+  tiendaNubeVarianteId BigInt?           @unique @map("tienda_nube_variante_id")
+  movimientos          MovimientoStock[]
+  creadoEn             DateTime          @default(now()) @map("creado_en")
+
+  @@unique([productoId, colorId, talleId])
+  @@index([colorId])
+  @@index([talleId])
+  @@map("variantes")
+}
+
+/// Precios de un producto a lo largo del tiempo. Se agrega una fila al crear el
+/// producto y cada vez que cambia el precio de compra o de venta.
+model PrecioHistorial {
+  id           Int      @id @default(autoincrement())
+  productoId   Int      @map("producto_id")
+  producto     Producto @relation(fields: [productoId], references: [id])
+  precioCompra Decimal  @map("precio_compra") @db.Decimal(12, 2)
+  precioVenta  Decimal  @map("precio_venta") @db.Decimal(12, 2)
+  desde        DateTime @default(now())
+
+  @@index([productoId, desde])
+  @@map("precios_historial")
+}
+
+// ---------------------------------------------------------------------------
+// Stock
+// ---------------------------------------------------------------------------
+
+/// Motivo de un movimiento de stock. Se agregan más en las próximas etapas
+/// (ingreso de mercadería, venta, cambio, devolución, ajuste).
+enum TipoMovimiento {
+  CARGA_INICIAL
+}
+
+/// Cada cambio de stock de una variante queda registrado acá.
+model MovimientoStock {
+  id              Int            @id @default(autoincrement())
+  varianteId      Int            @map("variante_id")
+  variante        Variante       @relation(fields: [varianteId], references: [id])
+  tipo            TipoMovimiento
+  /// Positivo suma stock, negativo descuenta.
+  cantidad        Int
+  /// Stock de la variante después del movimiento.
+  stockResultante Int            @map("stock_resultante")
+  creadoEn        DateTime       @default(now()) @map("creado_en")
+
+  @@index([varianteId, creadoEn])
+  @@map("movimientos_stock")
 }

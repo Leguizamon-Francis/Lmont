@@ -10,6 +10,8 @@ import { LoginPage } from './pages/LoginPage';
 import { InicioPage } from './pages/InicioPage';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { NoEncontradaPage } from './pages/NoEncontradaPage';
+import { ProductosPage } from './pages/productos/ProductosPage';
+import { ProductoPage } from './pages/productos/ProductoPage';
 import { ApiRequestError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -27,6 +29,8 @@ const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <InicioPage /> },
+      { path: 'productos', element: <ProductosPage /> },
+      { path: 'productos/:id', element: <ProductoPage /> },
       { path: 'configuracion', element: <ConfiguracionPage /> },
       { path: '*', element: <NoEncontradaPage /> },
     ],
