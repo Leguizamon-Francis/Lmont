@@ -127,6 +127,7 @@ model Variante {
   /// ID de la variante en Tienda Nube (para la sincronización de stock).
   tiendaNubeVarianteId BigInt?           @unique @map("tienda_nube_variante_id")
   movimientos          MovimientoStock[]
+  ingresoItems         IngresoItem[]
   creadoEn             DateTime          @default(now()) @map("creado_en")
 
   @@unique([productoId, colorId, talleId])
@@ -154,9 +155,11 @@ model PrecioHistorial {
 // ---------------------------------------------------------------------------
 
 /// Motivo de un movimiento de stock. Se agregan más en las próximas etapas
-/// (ingreso de mercadería, venta, cambio, devolución, ajuste).
+/// (venta, cambio, devolución).
 enum TipoMovimiento {
   CARGA_INICIAL
+  INGRESO
+  AJUSTE
 }
 
 /// Cada cambio de stock de una variante queda registrado acá.
@@ -169,8 +172,61 @@ model MovimientoStock {
   cantidad        Int
   /// Stock de la variante después del movimiento.
   stockResultante Int            @map("stock_resultante")
+  /// Para ajustes: motivo y nota ("Rotura: se descosió").
+  detalle         String?
+  ingresoId       Int?           @map("ingreso_id")
+  ingreso         Ingreso?       @relation(fields: [ingresoId], references: [id])
   creadoEn        DateTime       @default(now()) @map("creado_en")
 
   @@index([varianteId, creadoEn])
+  @@index([ingresoId])
   @@map("movimientos_stock")
+}
+
+/// Proveedor de mercadería (los pedidos se hacen por WhatsApp).
+model Proveedor {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  whatsapp String?
+  notas    String?
+  activo   Boolean   @default(true)
+  creadoEn DateTime  @default(now()) @map("creado_en")
+  ingresos Ingreso[]
+
+  @@map("proveedores")
+}
+
+/// Ingreso de mercadería (compra a un proveedor). Suma stock a cada variante.
+model Ingreso {
+  id            Int               @id @default(autoincrement())
+  /// Día en que llegó la mercadería.
+  fecha         DateTime          @db.Date
+  proveedorId   Int?              @map("proveedor_id")
+  proveedor     Proveedor?        @relation(fields: [proveedorId], references: [id])
+  /// Suma de cantidad × costo de los ítems.
+  total         Decimal           @db.Decimal(12, 2)
+  /// Se pagó con plata de la caja: cuando exista Caja, cuenta como gasto.
+  pagadoConCaja Boolean           @default(false) @map("pagado_con_caja")
+  nota          String?
+  creadoEn      DateTime          @default(now()) @map("creado_en")
+  items         IngresoItem[]
+  movimientos   MovimientoStock[]
+
+  @@index([fecha])
+  @@map("ingresos")
+}
+
+model IngresoItem {
+  id            Int      @id @default(autoincrement())
+  ingresoId     Int      @map("ingreso_id")
+  ingreso       Ingreso  @relation(fields: [ingresoId], references: [id])
+  varianteId    Int      @map("variante_id")
+  variante      Variante @relation(fields: [varianteId], references: [id])
+  cantidad      Int
+  /// Costo por unidad en esta compra.
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(12, 2)
+
+  @@unique([ingresoId, varianteId])
+  @@index([varianteId])
+  @@map("ingreso_items")
 }

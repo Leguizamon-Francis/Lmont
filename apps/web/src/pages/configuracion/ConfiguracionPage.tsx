@@ -3,9 +3,11 @@ import { Box, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { VendedoresPanel } from './VendedoresPanel';
 import { CuentaPanel } from './CuentaPanel';
 import { ListaPanel } from './ListaPanel';
+import { ProveedoresPanel } from './ProveedoresPanel';
 
 const SECCIONES = [
   { id: 'vendedores', texto: 'Vendedores', panel: <VendedoresPanel /> },
+  { id: 'proveedores', texto: 'Proveedores', panel: <ProveedoresPanel /> },
   { id: 'tipos', texto: 'Tipos de prenda', panel: <ListaPanel key="tipos" tipo="tipos" /> },
   { id: 'talles', texto: 'Talles', panel: <ListaPanel key="talles" tipo="talles" /> },
   { id: 'colores', texto: 'Colores', panel: <ListaPanel key="colores" tipo="colores" /> },

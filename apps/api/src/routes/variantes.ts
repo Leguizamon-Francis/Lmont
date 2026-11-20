@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { codigoBarrasSchema, idSchema, varianteSchema } from '@lmont/shared';
+import { ajusteSchema, codigoBarrasSchema, idSchema, MOTIVOS_AJUSTE, varianteSchema, type Movimiento } from '@lmont/shared';
+import { bloquearVariante, moverStock } from '../catalogo/stock.js';
 import { prisma } from '../db.js';
 import { handler, HttpError, noEncontrado, validar } from '../http/errors.js';
 import { selectEncontrada, selectVariante, variante, varianteEncontrada } from '../catalogo/serializar.js';
@@ -37,6 +38,53 @@ variantesRouter.put(
       }
     }
     res.json(variante(await prisma.variante.update({ where: { id }, data, select: selectVariante })));
+  }),
+);
+
+/** Historial de movimientos de stock de una variante (los más recientes primero). */
+variantesRouter.get(
+  '/:id/movimientos',
+  handler(async (req, res) => {
+    const id = validar(idSchema, req.params.id);
+    if (!(await prisma.variante.findUnique({ where: { id }, select: { id: true } }))) throw noEncontrado('la variante');
+    const filas = await prisma.movimientoStock.findMany({
+      where: { varianteId: id },
+      orderBy: [{ creadoEn: 'desc' }, { id: 'desc' }],
+      take: 100,
+    });
+    const body: Movimiento[] = filas.map((m) => ({
+      id: m.id,
+      tipo: m.tipo,
+      cantidad: m.cantidad,
+      stockResultante: m.stockResultante,
+      detalle: m.detalle,
+      ingresoId: m.ingresoId,
+      creadoEn: m.creadoEn.toISOString(),
+    }));
+    res.json(body);
+  }),
+);
+
+/**
+ * Ajuste manual: se informa cuántas unidades hay realmente y se registra la diferencia
+ * como movimiento, con el motivo.
+ */
+variantesRouter.post(
+  '/:id/ajuste',
+  handler(async (req, res) => {
+    const id = validar(idSchema, req.params.id);
+    const { stockReal, motivo, nota } = validar(ajusteSchema, req.body);
+    const v = await prisma.$transaction(async (tx) => {
+      const actual = await bloquearVariante(tx, id);
+      if (actual === null) throw noEncontrado('la variante');
+      if (actual === stockReal) {
+        throw new HttpError(400, `El stock ya es ${stockReal}: no hay nada que ajustar`, { stockReal: `El stock ya es ${stockReal}` });
+      }
+      const detalle = MOTIVOS_AJUSTE[motivo].replace(/ \(.*\)$/, '') + (nota ? `: ${nota}` : '');
+      await moverStock(tx, id, stockReal - actual, 'AJUSTE', { detalle });
+      return tx.variante.findUniqueOrThrow({ where: { id }, select: selectVariante });
+    });
+    res.json(variante(v));
   }),
 );
 

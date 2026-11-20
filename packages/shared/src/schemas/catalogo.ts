@@ -162,7 +162,7 @@ export type PrecioHistorial = { id: number; precioCompra: number; precioVenta: n
 
 /** Resultado de buscar por código de barras (lector o cámara). */
 export type VarianteEncontrada = Variante & {
-  producto: { id: number; nombre: string; tipo: ItemLista; precioVenta: number; activo: boolean };
+  producto: { id: number; nombre: string; tipo: ItemLista; precioCompra: number; precioVenta: number; activo: boolean };
 };
 
 export type ListaProductos = { productos: ProductoResumen[]; total: number };

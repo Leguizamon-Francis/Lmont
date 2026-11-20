@@ -79,9 +79,12 @@ export function productoDetalle(p: Prisma.ProductoGetPayload<{ select: typeof se
 
 export const selectEncontrada = {
   ...selectVariante,
-  producto: { select: { id: true, nombre: true, precioVenta: true, activo: true, tipo: ITEM } },
+  producto: { select: { id: true, nombre: true, precioCompra: true, precioVenta: true, activo: true, tipo: ITEM } },
 } satisfies Prisma.VarianteSelect;
 
 export function varianteEncontrada(v: Prisma.VarianteGetPayload<{ select: typeof selectEncontrada }>): VarianteEncontrada {
-  return { ...v, producto: { ...v.producto, precioVenta: num(v.producto.precioVenta) } };
+  return {
+    ...v,
+    producto: { ...v.producto, precioCompra: num(v.producto.precioCompra), precioVenta: num(v.producto.precioVenta) },
+  };
 }

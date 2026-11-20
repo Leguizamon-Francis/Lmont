@@ -13,6 +13,9 @@ import { vendedoresRouter } from './routes/vendedores.js';
 import { coloresRouter, tallesRouter, tiposRouter } from './routes/listas.js';
 import { productosRouter } from './routes/productos.js';
 import { variantesRouter } from './routes/variantes.js';
+import { proveedoresRouter } from './routes/proveedores.js';
+import { ingresosRouter } from './routes/ingresos.js';
+import { stockRouter } from './routes/stock.js';
 
 type Opciones = {
   /** Directorio con el build de React para servirlo (producción). */
@@ -72,6 +75,9 @@ export function createApp(opts: Opciones = {}) {
   api.use('/colores', coloresRouter);
   api.use('/productos', productosRouter);
   api.use('/variantes', variantesRouter);
+  api.use('/proveedores', proveedoresRouter);
+  api.use('/ingresos', ingresosRouter);
+  api.use('/stock', stockRouter);
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
   app.use('/api', api);
 

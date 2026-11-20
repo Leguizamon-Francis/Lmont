@@ -1,29 +1,38 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  MenuItem,
   Stack,
   Switch,
   TextField,
   Typography,
 } from '@mui/material';
 import {
+  ajusteSchema,
+  MOTIVOS_AJUSTE,
+  NOMBRE_MOVIMIENTO,
   nuevasVariantesSchema,
   varianteSchema,
+  ZONA_HORARIA,
+  type AjusteInput,
+  type Movimiento,
   type NuevasVariantesInput,
   type ProductoDetalle,
   type Variante,
   type VarianteInput,
 } from '@lmont/shared';
-import { api } from '../../api/client';
+import { api, mensajeDeError } from '../../api/client';
 import { aplicarErroresServidor } from '../../api/forms';
 import { useLista, useTalles } from '../../api/catalogo';
 import { SelectorChips } from '../../components/campos';
@@ -67,6 +76,22 @@ export function EditarVarianteDialog({ productoId, variante, onClose }: { produc
     }
   });
   const codigo = form.watch('codigoBarras');
+  const [ajustando, setAjustando] = useState(false);
+
+  if (ajustando) {
+    return (
+      <AjusteDialog
+        variante={variante}
+        onClose={() => setAjustando(false)}
+        onAjustado={() => {
+          refrescar();
+          qc.invalidateQueries({ queryKey: ['movimientos', variante.id] });
+          qc.invalidateQueries({ queryKey: ['stock'] });
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="xs">
@@ -100,9 +125,15 @@ export function EditarVarianteDialog({ productoId, variante, onClose }: { produc
               helperText={errors.stockMinimo?.message ?? 'Avisa cuando queden esta cantidad o menos. 0 = sin aviso.'}
               slotProps={{ htmlInput: { inputMode: 'numeric' } }}
             />
-            <Typography variant="body2" color="text.secondary">
-              Stock actual: <b>{variante.stock}</b>. Se modifica con los ingresos de mercadería y las ventas.
-            </Typography>
+            <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Stock actual: <b>{variante.stock}</b>
+              </Typography>
+              <Button size="small" onClick={() => setAjustando(true)}>
+                Ajustar stock
+              </Button>
+            </Stack>
+            <Movimientos varianteId={variante.id} />
             <FormControlLabel
               control={<Switch defaultChecked={variante.activo} {...form.register('activo')} />}
               label="Activa (se puede vender)"
@@ -199,5 +230,125 @@ export function AgregarVariantesDialog({ producto, onClose }: { producto: Produc
         </DialogActions>
       </form>
     </Dialog>
+  );
+}
+
+/** Corrección manual: se carga cuántas hay realmente y el motivo. */
+function AjusteDialog({ variante, onClose, onAjustado }: { variante: Variante; onClose: () => void; onAjustado: () => void }) {
+  const form = useForm<AjusteInput>({
+    resolver: zodResolver(ajusteSchema),
+    defaultValues: { stockReal: String(variante.stock), motivo: 'RECUENTO', nota: '' },
+  });
+  const errors = form.formState.errors;
+  const [error, setError] = useState<string | null>(null);
+  const ajustar = useMutation({
+    mutationFn: (d: AjusteInput) => api<Variante>(`/variantes/${variante.id}/ajuste`, { body: d }),
+    onSuccess: onAjustado,
+  });
+  const onSubmit = form.handleSubmit(async (d) => {
+    setError(null);
+    try {
+      await ajustar.mutateAsync(d);
+    } catch (e) {
+      setError(aplicarErroresServidor(e, form.setError));
+    }
+  });
+  const real = Number(form.watch('stockReal'));
+  const diferencia = Number.isInteger(real) && real >= 0 ? real - variante.stock : null;
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <form onSubmit={onSubmit} noValidate>
+        <DialogTitle>
+          Ajustar stock · {variante.color.nombre} {variante.talle.nombre}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Typography variant="body2" color="text.secondary">
+              El sistema dice que hay <b>{variante.stock}</b>. Cargá cuántas hay realmente; la diferencia queda registrada con
+              el motivo. Para mercadería nueva usá "Ingresar mercadería".
+            </Typography>
+            <TextField
+              label="Cuántas hay realmente"
+              autoFocus
+              {...form.register('stockReal')}
+              error={!!errors.stockReal}
+              helperText={
+                errors.stockReal?.message ??
+                (diferencia ? `${diferencia > 0 ? 'Suma' : 'Descuenta'} ${Math.abs(diferencia)} ${Math.abs(diferencia) === 1 ? 'unidad' : 'unidades'}` : ' ')
+              }
+              slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+            />
+            <Controller
+              control={form.control}
+              name="motivo"
+              render={({ field }) => (
+                <TextField select label="Motivo" {...field} error={!!errors.motivo} helperText={errors.motivo?.message}>
+                  {Object.entries(MOTIVOS_AJUSTE).map(([k, t]) => (
+                    <MenuItem key={k} value={k}>
+                      {t}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+            />
+            <TextField label="Nota" {...form.register('nota')} error={!!errors.nota} helperText={errors.nota?.message ?? 'Opcional, salvo que el motivo sea "Otro"'} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Volver</Button>
+          <Button type="submit" variant="contained" loading={ajustar.isPending}>
+            Ajustar
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  );
+}
+
+const fmtFechaHora = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: ZONA_HORARIA });
+
+/** Últimos movimientos de stock de la variante. */
+function Movimientos({ varianteId }: { varianteId: number }) {
+  const [abierto, setAbierto] = useState(false);
+  const { data, error } = useQuery({
+    queryKey: ['movimientos', varianteId],
+    queryFn: () => api<Movimiento[]>(`/variantes/${varianteId}/movimientos`),
+    enabled: abierto,
+  });
+  if (!abierto) {
+    return (
+      <Button size="small" onClick={() => setAbierto(true)} sx={{ alignSelf: 'flex-start' }}>
+        Ver movimientos de stock
+      </Button>
+    );
+  }
+  return (
+    <Box>
+      {error && <Alert severity="error">{mensajeDeError(error)}</Alert>}
+      {data?.length === 0 && <Typography variant="body2" color="text.secondary">Todavía no tiene movimientos.</Typography>}
+      {data?.map((m) => (
+        <Stack key={m.id} direction="row" spacing={1} sx={{ py: 0.75, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2">
+              {m.ingresoId ? <RouterLink to={`/stock/ingresos/${m.ingresoId}`}>{NOMBRE_MOVIMIENTO[m.tipo]}</RouterLink> : NOMBRE_MOVIMIENTO[m.tipo]}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {fmtFechaHora.format(new Date(m.creadoEn))}
+              {m.detalle ? ` · ${m.detalle}` : ''}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }} color={m.cantidad > 0 ? 'success.main' : 'error.main'}>
+              {m.cantidad > 0 ? `+${m.cantidad}` : m.cantidad}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              quedó {m.stockResultante}
+            </Typography>
+          </Box>
+        </Stack>
+      ))}
+    </Box>
   );
 }
