@@ -86,11 +86,13 @@ export function VentasDelDia() {
                           <b>{formatHora(v.creadoEn)}</b>
                           <span>{v.descripcion}</span>
                           {v.anulada && <Chip label="Anulada" size="small" color="error" variant="outlined" />}
+                          {v.conCambios && <Chip label="Con cambios" size="small" variant="outlined" />}
                         </Box>
                       }
                       secondary={[
                         `${v.unidades} ${v.unidades === 1 ? 'prenda' : 'prendas'}`,
                         v.pagos.map(nombrePlan).join(' + '),
+                        v.cliente?.nombre,
                         v.vendedor?.nombre,
                       ]
                         .filter(Boolean)

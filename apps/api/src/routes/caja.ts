@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
+  CONCEPTO_CAMBIO_COBRO,
+  CONCEPTO_CAMBIO_REINTEGRO,
   CONCEPTO_MERCADERIA,
   conceptoCajaSchema,
   hoy,
@@ -36,7 +38,7 @@ type Pago = { fecha: string; medio: MedioPago; cobrado: number };
 
 /** Todo lo que pasó por la caja entre dos fechas (desde inclusive, hasta exclusive). */
 async function leerCaja(desde: string, hasta: string) {
-  const [ventas, compras, manuales] = await Promise.all([
+  const [ventas, compras, manuales, cambios] = await Promise.all([
     prisma.venta.findMany({
       where: { anulada: false, creadoEn: { gte: rangoDelDia(desde).desde, lt: rangoDelDia(hasta).desde } },
       select: { creadoEn: true, pagos: { select: { medio: true, cobrado: true } } },
@@ -59,6 +61,17 @@ async function leerCaja(desde: string, hasta: string) {
         vendedor: { select: { id: true, nombre: true } },
       },
       orderBy: [{ fecha: 'asc' }, { id: 'asc' }],
+    }),
+    // Diferencias cobradas o devueltas en cambios y devoluciones.
+    prisma.cambioPago.findMany({
+      where: { cambio: { creadoEn: { gte: rangoDelDia(desde).desde, lt: rangoDelDia(hasta).desde } } },
+      select: {
+        id: true,
+        medio: true,
+        cobrado: true,
+        cambio: { select: { ventaId: true, creadoEn: true, vendedor: { select: { id: true, nombre: true } }, venta: { select: { cliente: { select: { nombre: true } } } } } },
+      },
+      orderBy: { id: 'asc' },
     }),
   ]);
 
@@ -97,6 +110,22 @@ async function leerCaja(desde: string, hasta: string) {
         vendedor: null,
       }),
     ),
+    ...cambios.map((p): MovimientoCaja => {
+      const cobrado = num(p.cobrado);
+      return {
+        clave: `c-${p.id}`,
+        id: p.cambio.ventaId,
+        origen: 'CAMBIO',
+        tipo: cobrado > 0 ? 'INGRESO' : 'GASTO',
+        fecha: hoy(p.cambio.creadoEn),
+        concepto: cobrado > 0 ? CONCEPTO_CAMBIO_COBRO : CONCEPTO_CAMBIO_REINTEGRO,
+        conceptoId: null,
+        monto: Math.abs(cobrado),
+        medio: p.medio,
+        detalle: [`Venta N° ${p.cambio.ventaId}`, p.cambio.venta.cliente?.nombre].filter(Boolean).join(' · '),
+        vendedor: p.cambio.vendedor,
+      };
+    }),
   ];
   return { pagos, cantidadVentas, movimientos };
 }

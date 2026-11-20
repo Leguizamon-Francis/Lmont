@@ -1,21 +1,12 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Box,
   Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   IconButton,
-  InputAdornment,
-  List,
-  ListItemButton,
-  ListItemText,
   MenuItem,
   Paper,
   Snackbar,
@@ -25,7 +16,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -38,18 +28,16 @@ import {
   parseMonto,
   redondear,
   textoPorcentaje,
-  type ListaProductos,
   type MedioPago,
   type PlanPago,
-  type ProductoDetalle,
   type Vendedor,
-  type VarianteEncontrada,
   type VentaDetalle,
   type VentaInput,
 } from '@lmont/shared';
-import { api, ApiRequestError, mensajeDeError } from '../../api/client';
-import { pareceCodigo } from '../../api/catalogo';
+import { api, mensajeDeError } from '../../api/client';
 import { MontoField } from '../../components/campos';
+import { BuscadorPrendas, type Elegida } from '../../components/BuscadorPrendas';
+import { ClienteSelector, type ClienteElegido } from '../../components/ClienteSelector';
 
 type ItemVenta = {
   varianteId: number;
@@ -62,12 +50,12 @@ type ItemVenta = {
   cantidad: number;
 };
 type PagoBorrador = { medio: MedioPago | ''; cuotas: number; monto: string };
-type Borrador = { items: ItemVenta[]; pagos: PagoBorrador[]; nota: string };
+type Borrador = { items: ItemVenta[]; pagos: PagoBorrador[]; nota: string; cliente?: ClienteElegido | null };
 
 const CLAVE_BORRADOR = 'lmont.venta.borrador';
 const CLAVE_VENDEDOR = 'lmont.venta.vendedor';
 const pagoVacio = (): PagoBorrador => ({ medio: '', cuotas: 1, monto: '' });
-const vacio = (): Borrador => ({ items: [], pagos: [pagoVacio()], nota: '' });
+const vacio = (): Borrador => ({ items: [], pagos: [pagoVacio()], nota: '', cliente: null });
 
 function leer<T>(clave: string, porDefecto: T): T {
   try {
@@ -90,16 +78,11 @@ function leerBorrador(): Borrador {
   return b && Array.isArray(b.items) && Array.isArray(b.pagos) && b.pagos.length ? b : vacio();
 }
 
-/** Producto con el que se agrega una prenda (viene del lector o del buscador). */
-type Elegida = Pick<VarianteEncontrada, 'id' | 'color' | 'talle' | 'stock' | 'activo'> & {
-  producto: Pick<VarianteEncontrada['producto'], 'nombre' | 'tipo' | 'precioVenta' | 'activo'>;
-};
-
 /** Pantalla de venta: escanear o buscar prendas, elegir cómo paga y cobrar. */
 export function NuevaVenta() {
   const qc = useQueryClient();
   const [b, setB] = useState<Borrador>(leerBorrador);
-  useEffect(() => guardar(CLAVE_BORRADOR, b.items.length ? b : null), [b]);
+  useEffect(() => guardar(CLAVE_BORRADOR, b.items.length || b.cliente ? b : null), [b]);
   const [vendedorId, setVendedorId] = useState<string>(() => leer(CLAVE_VENDEDOR, ''));
   useEffect(() => guardar(CLAVE_VENDEDOR, vendedorId || null), [vendedorId]);
 
@@ -110,26 +93,21 @@ export function NuevaVenta() {
     if (vendedores.data && vendedorId && !vendedores.data.some((v) => String(v.id) === vendedorId)) setVendedorId('');
   }, [vendedores.data, vendedorId]);
 
-  const [texto, setTexto] = useState('');
-  const [resultados, setResultados] = useState<ListaProductos['productos'] | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
   const [agregado, setAgregado] = useState<string | null>(null);
-  const [eligiendo, setEligiendo] = useState<number | null>(null);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [hecho, setHecho] = useState<VentaDetalle | null>(null);
   const [pagaCon, setPagaCon] = useState('');
   const buscador = useRef<HTMLInputElement>(null);
 
-  /** Suma una unidad de la prenda, sin pasarse del stock. */
-  function agregar(v: Elegida) {
+  /** Suma una unidad de la prenda, sin pasarse del stock. Devuelve el aviso si no se pudo. */
+  function agregar(v: Elegida): string | null {
     const nombre = `${v.producto.tipo.nombre} ${v.producto.nombre}`;
     const desc = `${nombre} ${v.color.nombre} ${v.talle.nombre}`;
-    if (!v.activo || !v.producto.activo) return setAviso(`${desc} está desactivado y no se puede vender.`);
+    if (!v.activo || !v.producto.activo) return `${desc} está desactivado y no se puede vender.`;
     const actual = b.items.find((it) => it.varianteId === v.id)?.cantidad ?? 0;
     if (actual + 1 > v.stock) {
-      return setAviso(v.stock === 0 ? `No hay stock de ${desc}.` : `No hay más stock de ${desc}: quedan ${v.stock} y ya están todas en la venta.`);
+      return v.stock === 0 ? `No hay stock de ${desc}.` : `No hay más stock de ${desc}: quedan ${v.stock} y ya están todas en la venta.`;
     }
-    setAviso(null);
     setHecho(null);
     setB((x) => {
       const i = x.items.findIndex((it) => it.varianteId === v.id);
@@ -147,35 +125,8 @@ export function NuevaVenta() {
       return { ...x, items: [...x.items, nuevo] };
     });
     setAgregado(`+1 ${desc}`);
+    return null;
   }
-
-  const buscar = async (e: FormEvent) => {
-    e.preventDefault();
-    const t = texto.trim();
-    setAviso(null);
-    if (!t) return;
-    if (pareceCodigo(t)) {
-      try {
-        const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
-        agregar(v);
-        setTexto('');
-        setResultados(null);
-        return;
-      } catch (err) {
-        if (!(err instanceof ApiRequestError && err.status === 404)) return setAviso(mensajeDeError(err));
-        if (/^\d+$/.test(t)) {
-          setTexto('');
-          return setAviso(`No hay ninguna prenda con el código ${t}. Buscala por nombre.`);
-        }
-      }
-    }
-    try {
-      const r = await api<ListaProductos>(`/productos?activos=1&q=${encodeURIComponent(t)}`);
-      setResultados(r.productos);
-    } catch (err) {
-      setAviso(mensajeDeError(err));
-    }
-  };
 
   const cambiarItem = (varianteId: number, f: (it: ItemVenta) => ItemVenta | null) =>
     setB((x) => ({ ...x, items: x.items.flatMap((it) => (it.varianteId === varianteId ? (f(it) ?? []) : [it])) }));
@@ -241,6 +192,7 @@ export function NuevaVenta() {
     if (Object.keys(errs).length) return;
     registrar.mutate({
       vendedorId: vendedorId ? Number(vendedorId) : null,
+      clienteId: b.cliente?.id ?? null,
       nota: b.nota,
       items: b.items.map((it) => ({ varianteId: it.varianteId, cantidad: it.cantidad, precioUnitario: (parseMonto(it.precio) as { value: number }).value })),
       pagos: pagos.map((p) => ({ medio: p.medio as MedioPago, cuotas: p.medio === 'CREDITO' ? p.cuotas : 1, monto: p.montoBase })),
@@ -256,39 +208,12 @@ export function NuevaVenta() {
         </Alert>
       )}
 
-      <Paper sx={{ p: 2 }}>
-        <Box component="form" onSubmit={buscar}>
-          <TextField
-            inputRef={buscador}
-            autoFocus
-            value={texto}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              if (!e.target.value) setResultados(null);
-            }}
-            placeholder="Escaneá el código o buscá por nombre y apretá Enter"
-            slotProps={{
-              input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> },
-              htmlInput: { enterKeyHint: 'search', 'aria-label': 'Buscar prenda', autoComplete: 'off' },
-            }}
-          />
-        </Box>
-        {aviso && <Alert severity="warning" sx={{ mt: 1.5 }} onClose={() => setAviso(null)}>{aviso}</Alert>}
-        {resultados && (
-          <List dense sx={{ mt: 1 }}>
-            {resultados.length === 0 && <Typography color="text.secondary" sx={{ px: 1 }}>No se encontró nada con esa búsqueda.</Typography>}
-            {resultados.slice(0, 10).map((p) => (
-              <ListItemButton key={p.id} onClick={() => setEligiendo(p.id)} disabled={p.stockTotal === 0}>
-                <ListItemText
-                  primary={`${p.tipo.nombre} ${p.nombre}`}
-                  secondary={p.stockTotal === 0 ? 'Sin stock' : `${p.stockTotal} en stock · ${formatMonto(p.precioVenta)}`}
-                />
-                <AddIcon color="action" />
-              </ListItemButton>
-            ))}
-          </List>
-        )}
-      </Paper>
+      <BuscadorPrendas
+        inputRef={buscador}
+        autoFocus
+        onElegir={agregar}
+        reservadas={(id) => b.items.find((it) => it.varianteId === id)?.cantidad ?? 0}
+      />
 
       {b.items.length === 0 ? (
         <Paper sx={{ p: 3 }}>
@@ -351,23 +276,28 @@ export function NuevaVenta() {
       {b.items.length > 0 && (
         <Paper sx={{ p: 2 }}>
           <Stack spacing={2}>
-            {!!vendedores.data?.length && (
-              <TextField
-                select
-                label="Vendió"
-                value={vendedorId}
-                onChange={(e) => setVendedorId(e.target.value)}
-                error={!!errores.vendedor}
-                helperText={errores.vendedor}
-                sx={{ maxWidth: { sm: 280 } }}
-              >
-                {vendedores.data.map((v) => (
-                  <MenuItem key={v.id} value={String(v.id)}>
-                    {v.nombre}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              {!!vendedores.data?.length && (
+                <TextField
+                  select
+                  label="Vendió"
+                  value={vendedorId}
+                  onChange={(e) => setVendedorId(e.target.value)}
+                  error={!!errores.vendedor}
+                  helperText={errores.vendedor}
+                  sx={{ width: { sm: 220 } }}
+                >
+                  {vendedores.data.map((v) => (
+                    <MenuItem key={v.id} value={String(v.id)}>
+                      {v.nombre}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+              <Box sx={{ flex: 1 }}>
+                <ClienteSelector value={b.cliente ?? null} onChange={(c) => setB((x) => ({ ...x, cliente: c }))} error={errores.clienteId} />
+              </Box>
+            </Stack>
 
             <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
               <Typography color="text.secondary">
@@ -500,71 +430,7 @@ export function NuevaVenta() {
         </Paper>
       )}
 
-      {eligiendo && (
-        <ElegirVarianteDialog
-          productoId={eligiendo}
-          enVenta={b.items}
-          onClose={() => setEligiendo(null)}
-          onElegir={(v) => {
-            agregar(v);
-            setEligiendo(null);
-            setResultados(null);
-            setTexto('');
-            buscador.current?.focus();
-          }}
-        />
-      )}
       <Snackbar open={!!agregado} message={agregado} autoHideDuration={1500} onClose={() => setAgregado(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Stack>
-  );
-}
-
-/** Elegir color y talle de un producto buscado por nombre. */
-function ElegirVarianteDialog(props: { productoId: number; enVenta: ItemVenta[]; onClose: () => void; onElegir: (v: Elegida) => void }) {
-  const { data: p, error } = useQuery({
-    queryKey: ['producto', props.productoId],
-    queryFn: () => api<ProductoDetalle>(`/productos/${props.productoId}`),
-  });
-  const activas = p?.variantes.filter((v) => v.activo) ?? [];
-  const colores = [...new Set(activas.map((v) => v.color.nombre))];
-  const disponibles = (v: (typeof activas)[number]) => v.stock - (props.enVenta.find((it) => it.varianteId === v.id)?.cantidad ?? 0);
-
-  return (
-    <Dialog open onClose={props.onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{p ? `${p.tipo.nombre} ${p.nombre} · ${formatMonto(p.precioVenta)}` : 'Cargando…'}</DialogTitle>
-      <DialogContent>
-        {error && <Alert severity="error">{mensajeDeError(error)}</Alert>}
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          {colores.map((color) => (
-            <Box key={color}>
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
-                {color}
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {activas
-                  .filter((v) => v.color.nombre === color)
-                  .map((v) => {
-                    const quedan = disponibles(v);
-                    return (
-                      <Chip
-                        key={v.id}
-                        label={`${v.talle.nombre} · ${quedan > 0 ? quedan : 'sin stock'}`}
-                        disabled={quedan <= 0}
-                        variant="outlined"
-                        onClick={() => p && props.onElegir({ ...v, producto: p })}
-                        sx={{ minHeight: 40, fontSize: 15 }}
-                      />
-                    );
-                  })}
-              </Box>
-            </Box>
-          ))}
-          {p && activas.length === 0 && <Typography color="text.secondary">Este producto no tiene variantes activas.</Typography>}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={props.onClose}>Cancelar</Button>
-      </DialogActions>
-    </Dialog>
   );
 }

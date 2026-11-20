@@ -16,12 +16,12 @@ export type ItemMenu = { texto: string; ruta: string; icono: ReactNode; disponib
 export const MENU: ItemMenu[] = [
   { texto: 'Inicio', ruta: '/', icono: <HomeIcon />, disponible: true },
   { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon />, disponible: true },
-  { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon />, disponible: false },
+  { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon />, disponible: true },
   { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon />, disponible: true },
   { texto: 'Stock y mercadería', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
   { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon />, disponible: false },
   { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon />, disponible: true },
-  { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon />, disponible: false },
+  { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon />, disponible: true },
   { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon />, disponible: false },
   { texto: 'Configuración', ruta: '/configuracion', icono: <SettingsIcon />, disponible: true },
 ];

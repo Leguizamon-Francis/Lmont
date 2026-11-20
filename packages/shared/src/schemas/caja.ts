@@ -44,10 +44,11 @@ export const mesSchema = z
 
 /** Renglón de la caja de un día: cargado a mano o automático (compra de mercadería pagada con la caja). */
 export type MovimientoCaja = {
-  /** "m-12" para los cargados a mano, "i-5" para ingresos de mercadería. */
+  /** "m-12" para los cargados a mano, "i-5" para ingresos de mercadería, "c-3" para pagos de cambios. */
   clave: string;
   id: number;
-  origen: 'MANUAL' | 'MERCADERIA';
+  /** CAMBIO: diferencia cobrada o devuelta en un cambio (id = venta). */
+  origen: 'MANUAL' | 'MERCADERIA' | 'CAMBIO';
   tipo: TipoCaja;
   fecha: string;
   concepto: string;
@@ -87,6 +88,8 @@ export type CajaMes = {
 
 /** Nombre del concepto automático de las compras pagadas con la caja. */
 export const CONCEPTO_MERCADERIA = 'Compra de mercadería';
+export const CONCEPTO_CAMBIO_COBRO = 'Diferencia cobrada en un cambio';
+export const CONCEPTO_CAMBIO_REINTEGRO = 'Devolución de dinero a un cliente';
 
 /** "2026-11" -> "noviembre 2026" */
 export function formatMes(mes: string): string {

@@ -13,7 +13,7 @@ export async function moverStock(
   varianteId: number,
   cantidad: number,
   tipo: TipoMovimiento,
-  extra: { detalle?: string | null; ingresoId?: number; ventaId?: number } = {},
+  extra: { detalle?: string | null; ingresoId?: number; ventaId?: number; cambioId?: number } = {},
 ) {
   if (!Number.isInteger(cantidad) || cantidad === 0) throw new Error(`Cantidad de movimiento inválida: ${cantidad}`);
   const filas = await tx.$queryRaw<{ stock: number }[]>`
@@ -23,7 +23,7 @@ export async function moverStock(
   const fila = filas[0];
   if (!fila) throw new HttpError(409, 'No hay stock suficiente');
   await tx.movimientoStock.create({
-    data: { varianteId, cantidad, tipo, stockResultante: fila.stock, detalle: extra.detalle ?? null, ingresoId: extra.ingresoId, ventaId: extra.ventaId },
+    data: { varianteId, cantidad, tipo, stockResultante: fila.stock, detalle: extra.detalle ?? null, ingresoId: extra.ingresoId, ventaId: extra.ventaId, cambioId: extra.cambioId },
   });
   return fila.stock;
 }

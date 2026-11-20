@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
+import { Link as RouterLink, useLocation, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,7 +17,19 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { formatFecha, formatHora, formatMonto, hoy, nombrePlan, textoPorcentaje, type VentaDetalle } from '@lmont/shared';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import {
+  esDevolucion,
+  formatFecha,
+  formatHora,
+  formatMonto,
+  hoy,
+  MEDIOS_PAGO,
+  nombrePlan,
+  textoPorcentaje,
+  type CambioDetalle,
+  type VentaDetalle,
+} from '@lmont/shared';
 import { api, mensajeDeError } from '../../api/client';
 
 const fechaLocal = (iso: string) => hoy(new Date(iso));
@@ -24,6 +37,8 @@ const fechaLocal = (iso: string) => hoy(new Date(iso));
 export function VentaPage() {
   const id = Number(useParams().id);
   const [anulando, setAnulando] = useState(false);
+  const location = useLocation();
+  const [registrado, setRegistrado] = useState(!!(location.state as { cambioRegistrado?: boolean } | null)?.cambioRegistrado);
   const { data: v, isPending, error } = useQuery({ queryKey: ['ventas', 'detalle', id], queryFn: () => api<VentaDetalle>(`/ventas/${id}`) });
 
   if (isPending) return <Typography color="text.secondary">Cargando…</Typography>;
@@ -37,6 +52,12 @@ export function VentaPage() {
           Ventas del {formatFecha(dia)}
         </Button>
       </Box>
+
+      {registrado && (
+        <Alert severity="success" onClose={() => setRegistrado(false)}>
+          Cambio registrado. El stock ya se actualizó.
+        </Alert>
+      )}
 
       {v.anulada && (
         <Alert severity="warning">
@@ -53,11 +74,23 @@ export function VentaPage() {
               {v.vendedor ? ` · vendió ${v.vendedor.nombre}` : ''}
             </Typography>
             <Typography variant="h4">Venta N° {v.id}</Typography>
+            {v.cliente && (
+              <Typography>
+                Cliente: <RouterLink to={`/clientes/${v.cliente.id}`}>{v.cliente.nombre}</RouterLink>
+              </Typography>
+            )}
           </Box>
           {!v.anulada && (
-            <Button color="error" variant="outlined" onClick={() => setAnulando(true)}>
-              Anular venta
-            </Button>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              <Button variant="contained" startIcon={<SwapHorizIcon />} component={RouterLink} to={`/ventas/${v.id}/cambio`}>
+                Cambio o devolución
+              </Button>
+              {!v.conCambios && (
+                <Button color="error" variant="outlined" onClick={() => setAnulando(true)}>
+                  Anular venta
+                </Button>
+              )}
+            </Stack>
           )}
         </Stack>
         {v.nota && (
@@ -82,6 +115,15 @@ export function VentaPage() {
                   {it.variante.color.nombre} · {it.variante.talle.nombre} · {it.cantidad} × {formatMonto(it.precioUnitario)}
                   {it.precioUnitario !== it.precioLista && ` (lista ${formatMonto(it.precioLista)})`}
                 </Typography>
+                {it.devueltas > 0 && (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    sx={{ mt: 0.5 }}
+                    label={it.devueltas === it.cantidad ? 'Volvió todo' : `Volvieron ${it.devueltas} de ${it.cantidad}`}
+                  />
+                )}
               </Box>
               <Typography sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatMonto(it.cantidad * it.precioUnitario)}</Typography>
             </Stack>
@@ -113,7 +155,52 @@ export function VentaPage() {
         </Stack>
       </Paper>
 
+      {v.cambios.length > 0 && (
+        <Paper>
+          <Typography sx={{ px: 2, py: 1.5, fontWeight: 600, bgcolor: 'action.hover' }}>Cambios y devoluciones</Typography>
+          {v.cambios.map((c, i) => (
+            <Box key={c.id}>
+              {i > 0 && <Divider />}
+              <Cambio c={c} />
+            </Box>
+          ))}
+        </Paper>
+      )}
+
       {anulando && <AnularDialog venta={v} onClose={() => setAnulando(false)} />}
+    </Stack>
+  );
+}
+
+function Cambio({ c }: { c: CambioDetalle }) {
+  const prenda = (x: { cantidad: number; variante: CambioDetalle['llevados'][number]['variante'] }) =>
+    `${x.cantidad > 1 ? `${x.cantidad} × ` : ''}${x.variante.producto.tipo.nombre} ${x.variante.producto.nombre} ${x.variante.color.nombre} ${x.variante.talle.nombre}`;
+  const plata = c.pagos.reduce((s, p) => s + p.cobrado, 0);
+  return (
+    <Stack spacing={0.75} sx={{ p: 2 }}>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Chip label={esDevolucion(c) ? 'Devolución' : 'Cambio'} size="small" color={esDevolucion(c) ? 'warning' : 'primary'} variant="outlined" />
+          <Typography color="text.secondary">
+            {formatFecha(hoy(new Date(c.creadoEn)))} · {formatHora(c.creadoEn)}
+            {c.vendedor ? ` · atendió ${c.vendedor.nombre}` : ''}
+          </Typography>
+        </Box>
+        <Typography sx={{ fontWeight: 600 }} color={plata < 0 ? 'error' : plata > 0 ? 'success.main' : 'text.secondary'}>
+          {plata === 0
+            ? 'Sin diferencia'
+            : `${plata < 0 ? 'Se le devolvió' : 'Pagó'} ${formatMonto(Math.abs(plata))} (${c.pagos.map((p) => (p.cobrado > 0 ? nombrePlan(p) : MEDIOS_PAGO[p.medio])).join(' + ')})`}
+        </Typography>
+      </Stack>
+      <Typography>
+        <b>Volvió:</b> {c.devueltos.map(prenda).join(', ')} ({formatMonto(c.totalDevuelto)})
+      </Typography>
+      {c.llevados.length > 0 && (
+        <Typography>
+          <b>Se llevó:</b> {c.llevados.map(prenda).join(', ')} ({formatMonto(c.totalLlevado)})
+        </Typography>
+      )}
+      {c.nota && <Typography color="text.secondary">{c.nota}</Typography>}
     </Stack>
   );
 }

@@ -186,13 +186,19 @@ function CajaDelDia() {
                   <ListItemButton
                     key={m.clave}
                     divider
-                    onClick={() => (m.origen === 'MERCADERIA' ? navigate(`/stock/ingresos/${m.id}`) : setCargando({ tipo: m.tipo, movimiento: m }))}
+                    onClick={() =>
+                      m.origen === 'MERCADERIA'
+                        ? navigate(`/stock/ingresos/${m.id}`)
+                        : m.origen === 'CAMBIO'
+                          ? navigate(`/ventas/${m.id}`)
+                          : setCargando({ tipo: m.tipo, movimiento: m })
+                    }
                   >
                     <ListItemText
                       primary={
                         <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                           {m.concepto}
-                          {m.origen === 'MERCADERIA' && <Chip label="Automático" size="small" variant="outlined" />}
+                          {m.origen !== 'MANUAL' && <Chip label="Automático" size="small" variant="outlined" />}
                         </Box>
                       }
                       secondary={[m.detalle, MEDIOS_PAGO[m.medio], m.vendedor?.nombre].filter(Boolean).join(' · ')}
@@ -207,7 +213,7 @@ function CajaDelDia() {
             )}
           </Paper>
           <Typography variant="body2" color="text.secondary">
-            La mercadería que se marca como “pagada con la caja” al ingresarla aparece sola como gasto.
+            La mercadería que se marca como “pagada con la caja” al ingresarla y la plata de los cambios y devoluciones aparecen solas.
           </Typography>
         </Stack>
       )}

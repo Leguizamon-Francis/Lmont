@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { redondear } from '../money.js';
 import { cantidadSchema, idSchema, montoSchema, textoObligatorio, textoOpcional } from './comunes.js';
 import type { VarianteEncontrada } from './catalogo.js';
+import type { CambioDetalle } from './cambios.js';
 
 // ---------------------------------------------------------------------------
 // Medios de pago y planes (recargo por cuotas / descuento por medio de pago)
@@ -102,6 +103,7 @@ export const subtotalVenta = (items: { cantidad: number; precioUnitario: number 
 export const ventaSchema = z
   .object({
     vendedorId: idSchema.optional().nullable(),
+    clienteId: idSchema.optional().nullable(),
     nota: textoOpcional(500),
     items: z
       .array(ventaItemSchema, { error: 'Agregá al menos un producto' })
@@ -156,6 +158,7 @@ export type VentaResumen = {
   id: number;
   creadoEn: string;
   vendedor: { id: number; nombre: string } | null;
+  cliente: { id: number; nombre: string } | null;
   unidades: number;
   /** Primeros productos, para mostrar en la lista ("Camisa Oxford, Remera Básica…"). */
   descripcion: string;
@@ -163,6 +166,8 @@ export type VentaResumen = {
   total: number;
   pagos: Pick<VentaPago, 'medio' | 'cuotas' | 'cobrado'>[];
   anulada: boolean;
+  /** Tiene cambios o devoluciones registrados. */
+  conCambios: boolean;
 };
 
 export type VentaDetalle = Omit<VentaResumen, 'pagos'> & {
@@ -175,8 +180,11 @@ export type VentaDetalle = Omit<VentaResumen, 'pagos'> & {
     precioLista: number;
     precioUnitario: number;
     variante: VarianteEncontrada;
+    /** Unidades que el cliente ya devolvió (en cambios o devoluciones). */
+    devueltas: number;
   }[];
   pagos: VentaPago[];
+  cambios: CambioDetalle[];
 };
 
 export type TotalesVentas = {

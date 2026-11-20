@@ -141,7 +141,7 @@ export const ajusteSchema = z
   });
 export type AjusteInput = z.input<typeof ajusteSchema>;
 
-export type TipoMovimiento = 'CARGA_INICIAL' | 'INGRESO' | 'AJUSTE' | 'VENTA' | 'ANULACION_VENTA';
+export type TipoMovimiento = 'CARGA_INICIAL' | 'INGRESO' | 'AJUSTE' | 'VENTA' | 'ANULACION_VENTA' | 'DEVOLUCION' | 'CAMBIO';
 
 export const NOMBRE_MOVIMIENTO: Record<TipoMovimiento, string> = {
   CARGA_INICIAL: 'Carga inicial',
@@ -149,6 +149,8 @@ export const NOMBRE_MOVIMIENTO: Record<TipoMovimiento, string> = {
   AJUSTE: 'Ajuste',
   VENTA: 'Venta',
   ANULACION_VENTA: 'Venta anulada',
+  DEVOLUCION: 'Volvió (cambio o devolución)',
+  CAMBIO: 'Se la llevó en un cambio',
 };
 
 export type Movimiento = {

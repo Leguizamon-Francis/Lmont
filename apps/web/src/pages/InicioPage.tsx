@@ -65,8 +65,8 @@ export function InicioPage() {
         </Typography>
         <Typography color="text.secondary">
           Ya podés vender escaneando las prendas (el stock se descuenta solo), cargar productos, ingresar mercadería, ajustar el
-          stock, ver lo que se está terminando y llevar la caja. Las demás secciones del menú se habilitan en las próximas etapas:
-          promociones, cambios, clientes y reportes.
+          stock, ver lo que se está terminando, llevar la caja, registrar cambios y devoluciones y guardar los clientes con su historial.
+          Las demás secciones del menú se habilitan en las próximas etapas: promociones y reportes.
         </Typography>
       </Paper>
     </Stack>

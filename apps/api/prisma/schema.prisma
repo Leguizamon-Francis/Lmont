@@ -1,7 +1,7 @@
 // Modelo de datos de L'Mont.
 // Etapa 1: usuarios, vendedores y sesiones.
 // Etapa 2: catálogo (tipos de prenda, talles, colores, productos, variantes e historial de precios).
-// Stock, ventas, caja, etc. se agregan en las etapas siguientes con nuevas migraciones.
+// Etapas 3 a 6: stock, ventas, caja, clientes y cambios.
 
 generator client {
   provider = "prisma-client"
@@ -37,6 +37,7 @@ model Vendedor {
   activo          Boolean          @default(true)
   creadoEn        DateTime         @default(now()) @map("creado_en")
   ventas          Venta[]
+  cambios         Cambio[]
   movimientosCaja MovimientoCaja[]
 
   @@map("vendedores")
@@ -75,6 +76,7 @@ model Talle {
   activo    Boolean    @default(true)
   creadoEn  DateTime   @default(now()) @map("creado_en")
   variantes Variante[]
+  clientes  Cliente[]
 
   @@map("talles")
 }
@@ -131,6 +133,7 @@ model Variante {
   movimientos          MovimientoStock[]
   ingresoItems         IngresoItem[]
   ventaItems           VentaItem[]
+  cambioLlevados       CambioLlevado[]
   creadoEn             DateTime          @default(now()) @map("creado_en")
 
   @@unique([productoId, colorId, talleId])
@@ -157,14 +160,17 @@ model PrecioHistorial {
 // Stock
 // ---------------------------------------------------------------------------
 
-/// Motivo de un movimiento de stock. Se agregan más en las próximas etapas
-/// (venta, cambio, devolución).
+/// Motivo de un movimiento de stock.
 enum TipoMovimiento {
   CARGA_INICIAL
   INGRESO
   AJUSTE
   VENTA
   ANULACION_VENTA
+  /// Prenda que el cliente trae de vuelta (cambio o devolución): suma stock.
+  DEVOLUCION
+  /// Prenda que el cliente se lleva en un cambio: descuenta stock.
+  CAMBIO
 }
 
 /// Cada cambio de stock de una variante queda registrado acá.
@@ -183,11 +189,14 @@ model MovimientoStock {
   ingreso         Ingreso?       @relation(fields: [ingresoId], references: [id])
   ventaId         Int?           @map("venta_id")
   venta           Venta?         @relation(fields: [ventaId], references: [id])
+  cambioId        Int?           @map("cambio_id")
+  cambio          Cambio?        @relation(fields: [cambioId], references: [id])
   creadoEn        DateTime       @default(now()) @map("creado_en")
 
   @@index([varianteId, creadoEn])
   @@index([ingresoId])
   @@index([ventaId])
+  @@index([cambioId])
   @@map("movimientos_stock")
 }
 
@@ -269,6 +278,9 @@ model Venta {
   creadoEn        DateTime          @default(now()) @map("creado_en")
   vendedorId      Int?              @map("vendedor_id")
   vendedor        Vendedor?         @relation(fields: [vendedorId], references: [id])
+  /// Cliente (opcional).
+  clienteId       Int?              @map("cliente_id")
+  cliente         Cliente?          @relation(fields: [clienteId], references: [id])
   /// Suma de cantidad × precio cobrado de los productos.
   subtotal        Decimal           @db.Decimal(12, 2)
   /// Lo que se cobró en total, con recargos y descuentos de los medios de pago.
@@ -280,8 +292,10 @@ model Venta {
   items           VentaItem[]
   pagos           VentaPago[]
   movimientos     MovimientoStock[]
+  cambios         Cambio[]
 
   @@index([creadoEn])
+  @@index([clienteId])
   @@map("ventas")
 }
 
@@ -298,6 +312,7 @@ model VentaItem {
   precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
   /// Precio de compra en ese momento, para calcular la ganancia.
   costoUnitario  Decimal  @map("costo_unitario") @db.Decimal(12, 2)
+  devoluciones   CambioDevuelto[]
 
   @@unique([ventaId, varianteId])
   @@index([varianteId])
@@ -321,6 +336,108 @@ model VentaPago {
 
   @@index([ventaId])
   @@map("venta_pagos")
+}
+
+// ---------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------
+
+/// Cliente del local. Es opcional en cada venta.
+model Cliente {
+  id       Int      @id @default(autoincrement())
+  nombre   String
+  /// Solo dígitos, como en proveedores.
+  whatsapp String?
+  notas    String?
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now()) @map("creado_en")
+  /// Talles que usa (de la lista administrable): puede ser M en remeras y 42 en pantalones.
+  talles   Talle[]
+  ventas   Venta[]
+
+  @@index([nombre])
+  @@index([whatsapp])
+  @@map("clientes")
+}
+
+// ---------------------------------------------------------------------------
+// Cambios y devoluciones
+// ---------------------------------------------------------------------------
+
+/// Cambio o devolución sobre una venta. Las prendas devueltas vuelven al stock y las que se
+/// lleva salen del stock. Si no se lleva nada es una devolución.
+model Cambio {
+  id            Int               @id @default(autoincrement())
+  ventaId       Int               @map("venta_id")
+  venta         Venta             @relation(fields: [ventaId], references: [id])
+  creadoEn      DateTime          @default(now()) @map("creado_en")
+  vendedorId    Int?              @map("vendedor_id")
+  vendedor      Vendedor?         @relation(fields: [vendedorId], references: [id])
+  /// Valor de lo que devuelve (al precio que lo pagó).
+  totalDevuelto Decimal           @map("total_devuelto") @db.Decimal(12, 2)
+  /// Valor de lo que se lleva.
+  totalLlevado  Decimal           @map("total_llevado") @db.Decimal(12, 2)
+  /// totalLlevado − totalDevuelto: positivo paga el cliente, negativo se le reintegra.
+  diferencia    Decimal           @db.Decimal(12, 2)
+  nota          String?
+  devueltos     CambioDevuelto[]
+  llevados      CambioLlevado[]
+  pagos         CambioPago[]
+  movimientos   MovimientoStock[]
+
+  @@index([ventaId])
+  @@index([creadoEn])
+  @@map("cambios")
+}
+
+/// Prenda que el cliente trae de vuelta. Siempre sale de un ítem de la venta original.
+model CambioDevuelto {
+  id             Int       @id @default(autoincrement())
+  cambioId       Int       @map("cambio_id")
+  cambio         Cambio    @relation(fields: [cambioId], references: [id])
+  ventaItemId    Int       @map("venta_item_id")
+  ventaItem      VentaItem @relation(fields: [ventaItemId], references: [id])
+  cantidad       Int
+  /// Precio por unidad al que se había vendido (copiado de la venta).
+  precioUnitario Decimal   @map("precio_unitario") @db.Decimal(12, 2)
+
+  @@unique([cambioId, ventaItemId])
+  @@index([ventaItemId])
+  @@map("cambio_devueltos")
+}
+
+/// Prenda que el cliente se lleva a cambio.
+model CambioLlevado {
+  id             Int      @id @default(autoincrement())
+  cambioId       Int      @map("cambio_id")
+  cambio         Cambio   @relation(fields: [cambioId], references: [id])
+  varianteId     Int      @map("variante_id")
+  variante       Variante @relation(fields: [varianteId], references: [id])
+  cantidad       Int
+  precioLista    Decimal  @map("precio_lista") @db.Decimal(12, 2)
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
+  costoUnitario  Decimal  @map("costo_unitario") @db.Decimal(12, 2)
+
+  @@unique([cambioId, varianteId])
+  @@index([varianteId])
+  @@map("cambio_llevados")
+}
+
+/// Plata que se cobró (diferencia a favor del local) o se reintegró (cobrado negativo).
+model CambioPago {
+  id         Int       @id @default(autoincrement())
+  cambioId   Int       @map("cambio_id")
+  cambio     Cambio    @relation(fields: [cambioId], references: [id])
+  medio      MedioPago
+  cuotas     Int       @default(1)
+  monto      Decimal   @db.Decimal(12, 2)
+  porcentaje Decimal   @default(0) @db.Decimal(5, 2)
+  ajuste     Decimal   @default(0) @db.Decimal(12, 2)
+  /// Positivo: entró a la caja. Negativo: se le devolvió al cliente.
+  cobrado    Decimal   @db.Decimal(12, 2)
+
+  @@index([cambioId])
+  @@map("cambio_pagos")
 }
 
 // ---------------------------------------------------------------------------
