@@ -10,6 +10,7 @@ export * from './schemas/vendedor.js';
 export * from './schemas/catalogo.js';
 export * from './schemas/stock.js';
 export * from './schemas/ventas.js';
+export * from './schemas/caja.js';
 export * from './fechas.js';
 
 /** Forma estándar de los errores que devuelve la API. */

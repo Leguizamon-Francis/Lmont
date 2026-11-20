@@ -18,6 +18,7 @@ import { ingresosRouter } from './routes/ingresos.js';
 import { stockRouter } from './routes/stock.js';
 import { ventasRouter } from './routes/ventas.js';
 import { planesPagoRouter } from './routes/planesPago.js';
+import { cajaRouter } from './routes/caja.js';
 
 type Opciones = {
   /** Directorio con el build de React para servirlo (producción). */
@@ -82,6 +83,7 @@ export function createApp(opts: Opciones = {}) {
   api.use('/stock', stockRouter);
   api.use('/ventas', ventasRouter);
   api.use('/planes-pago', planesPagoRouter);
+  api.use('/caja', cajaRouter);
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
   app.use('/api', api);
 

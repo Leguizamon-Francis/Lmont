@@ -133,7 +133,7 @@ function AnularDialog({ venta, onClose }: { venta: VentaDetalle; onClose: () => 
   const anular = useMutation({
     mutationFn: () => api<VentaDetalle>(`/ventas/${venta.id}/anular`, { body: { motivo } }),
     onSuccess: () => {
-      for (const k of ['ventas', 'productos', 'producto', 'stock']) qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['ventas', 'productos', 'producto', 'stock', 'caja']) qc.invalidateQueries({ queryKey: [k] });
       onClose();
     },
   });

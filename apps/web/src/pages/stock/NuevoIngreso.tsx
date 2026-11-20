@@ -159,6 +159,7 @@ export function NuevoIngreso() {
       qc.invalidateQueries({ queryKey: ['productos'] });
       qc.invalidateQueries({ queryKey: ['producto'] });
       qc.invalidateQueries({ queryKey: ['stock'] });
+      qc.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 

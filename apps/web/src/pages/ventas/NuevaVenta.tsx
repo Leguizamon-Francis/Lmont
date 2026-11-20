@@ -215,7 +215,7 @@ export function NuevaVenta() {
       setB(vacio());
       setErrores({});
       setPagaCon('');
-      for (const k of ['ventas', 'productos', 'producto', 'stock']) qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['ventas', 'productos', 'producto', 'stock', 'caja']) qc.invalidateQueries({ queryKey: [k] });
       window.scrollTo({ top: 0 });
       buscador.current?.focus();
     },

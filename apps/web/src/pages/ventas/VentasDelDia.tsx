@@ -5,13 +5,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { formatHora, formatMonto, hoy, MEDIOS_PAGO, nombrePlan, type ListaVentas } from '@lmont/shared';
 import { api, mensajeDeError } from '../../api/client';
-
-/** Suma días a una fecha "AAAA-MM-DD". */
-function moverDia(iso: string, dias: number) {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
-}
+import { moverDia } from '../../fechas';
 
 /** Lo vendido en un día, con los totales por medio de pago. */
 export function VentasDelDia() {

@@ -16,6 +16,7 @@ import { StockPage } from './pages/stock/StockPage';
 import { IngresoPage } from './pages/stock/IngresoPage';
 import { VentasPage } from './pages/ventas/VentasPage';
 import { VentaPage } from './pages/ventas/VentaPage';
+import { CajaPage } from './pages/caja/CajaPage';
 import { ApiRequestError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { index: true, element: <InicioPage /> },
       { path: 'ventas', element: <VentasPage /> },
       { path: 'ventas/:id', element: <VentaPage /> },
+      { path: 'caja', element: <CajaPage /> },
       { path: 'productos', element: <ProductosPage /> },
       { path: 'productos/:id', element: <ProductoPage /> },
       { path: 'stock', element: <StockPage /> },

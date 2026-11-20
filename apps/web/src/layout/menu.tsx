@@ -20,7 +20,7 @@ export const MENU: ItemMenu[] = [
   { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon />, disponible: true },
   { texto: 'Stock y mercadería', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
   { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon />, disponible: false },
-  { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon />, disponible: false },
+  { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon />, disponible: true },
   { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon />, disponible: false },
   { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon />, disponible: false },
   { texto: 'Configuración', ruta: '/configuracion', icono: <SettingsIcon />, disponible: true },

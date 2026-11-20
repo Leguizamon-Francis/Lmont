@@ -32,11 +32,12 @@ model Usuario {
 
 /// Persona que atiende y vende. Se elige en cada venta, cambio y gasto.
 model Vendedor {
-  id       Int      @id @default(autoincrement())
-  nombre   String   @unique
-  activo   Boolean  @default(true)
-  creadoEn DateTime @default(now()) @map("creado_en")
-  ventas   Venta[]
+  id              Int              @id @default(autoincrement())
+  nombre          String           @unique
+  activo          Boolean          @default(true)
+  creadoEn        DateTime         @default(now()) @map("creado_en")
+  ventas          Venta[]
+  movimientosCaja MovimientoCaja[]
 
   @@map("vendedores")
 }
@@ -320,4 +321,44 @@ model VentaPago {
 
   @@index([ventaId])
   @@map("venta_pagos")
+}
+
+// ---------------------------------------------------------------------------
+// Caja
+// ---------------------------------------------------------------------------
+
+enum TipoCaja {
+  INGRESO
+  GASTO
+}
+
+/// Concepto de un ingreso o gasto de caja (Alquiler, Sueldos, Retiro…). Lista administrable.
+model ConceptoCaja {
+  id          Int              @id @default(autoincrement())
+  nombre      String
+  tipo        TipoCaja
+  activo      Boolean          @default(true)
+  movimientos MovimientoCaja[]
+
+  @@unique([nombre, tipo])
+  @@map("conceptos_caja")
+}
+
+/// Ingreso o gasto cargado a mano. Las ventas y las compras de mercadería pagadas con la
+/// caja no se copian acá: la caja las lee de sus tablas.
+model MovimientoCaja {
+  id         Int          @id @default(autoincrement())
+  fecha      DateTime     @db.Date
+  tipo       TipoCaja
+  conceptoId Int          @map("concepto_id")
+  concepto   ConceptoCaja @relation(fields: [conceptoId], references: [id])
+  monto      Decimal      @db.Decimal(12, 2)
+  medio      MedioPago    @default(EFECTIVO)
+  detalle    String?
+  vendedorId Int?         @map("vendedor_id")
+  vendedor   Vendedor?    @relation(fields: [vendedorId], references: [id])
+  creadoEn   DateTime     @default(now()) @map("creado_en")
+
+  @@index([fecha])
+  @@map("movimientos_caja")
 }
