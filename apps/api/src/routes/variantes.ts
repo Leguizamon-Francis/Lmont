@@ -59,6 +59,7 @@ variantesRouter.get(
       stockResultante: m.stockResultante,
       detalle: m.detalle,
       ingresoId: m.ingresoId,
+      ventaId: m.ventaId,
       creadoEn: m.creadoEn.toISOString(),
     }));
     res.json(body);

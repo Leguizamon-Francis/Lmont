@@ -36,6 +36,7 @@ model Vendedor {
   nombre   String   @unique
   activo   Boolean  @default(true)
   creadoEn DateTime @default(now()) @map("creado_en")
+  ventas   Venta[]
 
   @@map("vendedores")
 }
@@ -128,6 +129,7 @@ model Variante {
   tiendaNubeVarianteId BigInt?           @unique @map("tienda_nube_variante_id")
   movimientos          MovimientoStock[]
   ingresoItems         IngresoItem[]
+  ventaItems           VentaItem[]
   creadoEn             DateTime          @default(now()) @map("creado_en")
 
   @@unique([productoId, colorId, talleId])
@@ -160,6 +162,8 @@ enum TipoMovimiento {
   CARGA_INICIAL
   INGRESO
   AJUSTE
+  VENTA
+  ANULACION_VENTA
 }
 
 /// Cada cambio de stock de una variante queda registrado acá.
@@ -176,10 +180,13 @@ model MovimientoStock {
   detalle         String?
   ingresoId       Int?           @map("ingreso_id")
   ingreso         Ingreso?       @relation(fields: [ingresoId], references: [id])
+  ventaId         Int?           @map("venta_id")
+  venta           Venta?         @relation(fields: [ventaId], references: [id])
   creadoEn        DateTime       @default(now()) @map("creado_en")
 
   @@index([varianteId, creadoEn])
   @@index([ingresoId])
+  @@index([ventaId])
   @@map("movimientos_stock")
 }
 
@@ -229,4 +236,88 @@ model IngresoItem {
   @@unique([ingresoId, varianteId])
   @@index([varianteId])
   @@map("ingreso_items")
+}
+
+// ---------------------------------------------------------------------------
+// Ventas
+// ---------------------------------------------------------------------------
+
+enum MedioPago {
+  EFECTIVO
+  DEBITO
+  CREDITO
+  TRANSFERENCIA
+}
+
+/// Recargo o descuento por medio de pago. Efectivo, débito y transferencia tienen un
+/// solo plan (cuotas = 1); crédito puede tener uno por cantidad de cuotas.
+/// porcentaje > 0 es recargo, < 0 es descuento, 0 no cambia el precio.
+model PlanPago {
+  id         Int       @id @default(autoincrement())
+  medio      MedioPago
+  cuotas     Int       @default(1)
+  porcentaje Decimal   @default(0) @db.Decimal(5, 2)
+  activo     Boolean   @default(true)
+
+  @@unique([medio, cuotas])
+  @@map("planes_pago")
+}
+
+model Venta {
+  id              Int               @id @default(autoincrement())
+  creadoEn        DateTime          @default(now()) @map("creado_en")
+  vendedorId      Int?              @map("vendedor_id")
+  vendedor        Vendedor?         @relation(fields: [vendedorId], references: [id])
+  /// Suma de cantidad × precio cobrado de los productos.
+  subtotal        Decimal           @db.Decimal(12, 2)
+  /// Lo que se cobró en total, con recargos y descuentos de los medios de pago.
+  total           Decimal           @db.Decimal(12, 2)
+  nota            String?
+  anulada         Boolean           @default(false)
+  anuladaEn       DateTime?         @map("anulada_en")
+  motivoAnulacion String?           @map("motivo_anulacion")
+  items           VentaItem[]
+  pagos           VentaPago[]
+  movimientos     MovimientoStock[]
+
+  @@index([creadoEn])
+  @@map("ventas")
+}
+
+model VentaItem {
+  id             Int      @id @default(autoincrement())
+  ventaId        Int      @map("venta_id")
+  venta          Venta    @relation(fields: [ventaId], references: [id])
+  varianteId     Int      @map("variante_id")
+  variante       Variante @relation(fields: [varianteId], references: [id])
+  cantidad       Int
+  /// Precio de venta del producto en ese momento.
+  precioLista    Decimal  @map("precio_lista") @db.Decimal(12, 2)
+  /// Precio por unidad que se cobró (puede tener un descuento sobre el de lista).
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
+  /// Precio de compra en ese momento, para calcular la ganancia.
+  costoUnitario  Decimal  @map("costo_unitario") @db.Decimal(12, 2)
+
+  @@unique([ventaId, varianteId])
+  @@index([varianteId])
+  @@map("venta_items")
+}
+
+/// Cómo se pagó una venta. Puede haber varios medios en la misma venta.
+model VentaPago {
+  id         Int       @id @default(autoincrement())
+  ventaId    Int       @map("venta_id")
+  venta      Venta     @relation(fields: [ventaId], references: [id])
+  medio      MedioPago
+  cuotas     Int       @default(1)
+  /// Parte del subtotal que se paga con este medio.
+  monto      Decimal   @db.Decimal(12, 2)
+  /// Porcentaje aplicado en ese momento (copiado del plan).
+  porcentaje Decimal   @default(0) @db.Decimal(5, 2)
+  ajuste     Decimal   @default(0) @db.Decimal(12, 2)
+  /// monto + ajuste: lo que efectivamente entró.
+  cobrado    Decimal   @db.Decimal(12, 2)
+
+  @@index([ventaId])
+  @@map("venta_pagos")
 }

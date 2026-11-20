@@ -4,9 +4,11 @@ import { VendedoresPanel } from './VendedoresPanel';
 import { CuentaPanel } from './CuentaPanel';
 import { ListaPanel } from './ListaPanel';
 import { ProveedoresPanel } from './ProveedoresPanel';
+import { MediosPagoPanel } from './MediosPagoPanel';
 
 const SECCIONES = [
   { id: 'vendedores', texto: 'Vendedores', panel: <VendedoresPanel /> },
+  { id: 'pagos', texto: 'Medios de pago', panel: <MediosPagoPanel /> },
   { id: 'proveedores', texto: 'Proveedores', panel: <ProveedoresPanel /> },
   { id: 'tipos', texto: 'Tipos de prenda', panel: <ListaPanel key="tipos" tipo="tipos" /> },
   { id: 'talles', texto: 'Talles', panel: <ListaPanel key="talles" tipo="talles" /> },

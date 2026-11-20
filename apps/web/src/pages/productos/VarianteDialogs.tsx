@@ -332,7 +332,13 @@ function Movimientos({ varianteId }: { varianteId: number }) {
         <Stack key={m.id} direction="row" spacing={1} sx={{ py: 0.75, borderBottom: 1, borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2">
-              {m.ingresoId ? <RouterLink to={`/stock/ingresos/${m.ingresoId}`}>{NOMBRE_MOVIMIENTO[m.tipo]}</RouterLink> : NOMBRE_MOVIMIENTO[m.tipo]}
+              {m.ingresoId ? (
+                <RouterLink to={`/stock/ingresos/${m.ingresoId}`}>{NOMBRE_MOVIMIENTO[m.tipo]}</RouterLink>
+              ) : m.ventaId ? (
+                <RouterLink to={`/ventas/${m.ventaId}`}>{NOMBRE_MOVIMIENTO[m.tipo]}</RouterLink>
+              ) : (
+                NOMBRE_MOVIMIENTO[m.tipo]
+              )}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {fmtFechaHora.format(new Date(m.creadoEn))}

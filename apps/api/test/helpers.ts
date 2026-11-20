@@ -29,3 +29,10 @@ export async function agenteLogueado() {
   await agent.post('/api/auth/login').send({ usuario: USUARIO, password: PASSWORD }).expect(200);
   return agent;
 }
+
+/** Un plan por medio de pago sin recargo ni descuento (lo que crea la migración de ventas). */
+export async function crearPlanesBase() {
+  await prisma.planPago.createMany({
+    data: (['EFECTIVO', 'DEBITO', 'CREDITO', 'TRANSFERENCIA'] as const).map((medio) => ({ medio, cuotas: 1 })),
+  });
+}

@@ -1,6 +1,8 @@
 import { Link as RouterLink } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Paper, Stack, Typography } from '@mui/material';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSaleOutlined';
+import { formatMonto, type ListaVentas } from '@lmont/shared';
 import { useSesion } from '../auth/useSesion';
 import { api } from '../api/client';
 
@@ -9,9 +11,31 @@ type ResumenStock = { stockBajo: number; sinStock: number; unidades: number };
 export function InicioPage() {
   const { data: usuario } = useSesion();
   const { data: stock } = useQuery({ queryKey: ['stock', 'resumen'], queryFn: () => api<ResumenStock>('/stock/resumen') });
+  const { data: ventas } = useQuery({ queryKey: ['ventas', 'hoy'], queryFn: () => api<ListaVentas>('/ventas') });
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }}>
-      <Typography variant="h4">Hola{usuario ? `, ${usuario.nombre}` : ''}</Typography>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h4">Hola{usuario ? `, ${usuario.nombre}` : ''}</Typography>
+        <Button component={RouterLink} to="/ventas" variant="contained" size="large" startIcon={<PointOfSaleIcon />}>
+          Nueva venta
+        </Button>
+      </Stack>
+
+      {ventas && (
+        <Paper sx={{ p: 2.5 }}>
+          <Typography color="text.secondary">Vendido hoy</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            {formatMonto(ventas.totales.total)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {ventas.totales.ventas} {ventas.totales.ventas === 1 ? 'venta' : 'ventas'} · {ventas.totales.unidades}{' '}
+            {ventas.totales.unidades === 1 ? 'prenda' : 'prendas'}
+          </Typography>
+          <Button component={RouterLink} to="/ventas?tab=dia" size="small" sx={{ ml: -1, mt: 0.5 }}>
+            Ver ventas del día
+          </Button>
+        </Paper>
+      )}
 
       {stock && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -40,9 +64,9 @@ export function InicioPage() {
           Sistema en construcción
         </Typography>
         <Typography color="text.secondary">
-          Ya podés cargar productos, ingresar mercadería escaneando los códigos, ajustar el stock y ver lo que se está
-          terminando. Las demás secciones del menú se habilitan en las próximas etapas: ventas, promociones, cambios, caja y
-          reportes.
+          Ya podés vender escaneando las prendas (el stock se descuenta solo), cargar productos, ingresar mercadería, ajustar el
+          stock y ver lo que se está terminando. Las demás secciones del menú se habilitan en las próximas etapas: promociones,
+          cambios, caja, clientes y reportes.
         </Typography>
       </Paper>
     </Stack>

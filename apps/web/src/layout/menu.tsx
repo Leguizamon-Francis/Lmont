@@ -15,7 +15,7 @@ export type ItemMenu = { texto: string; ruta: string; icono: ReactNode; disponib
 /** Secciones del sistema. Las que no están disponibles se habilitan en etapas siguientes. */
 export const MENU: ItemMenu[] = [
   { texto: 'Inicio', ruta: '/', icono: <HomeIcon />, disponible: true },
-  { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon />, disponible: false },
+  { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon />, disponible: true },
   { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon />, disponible: false },
   { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon />, disponible: true },
   { texto: 'Stock y mercadería', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
