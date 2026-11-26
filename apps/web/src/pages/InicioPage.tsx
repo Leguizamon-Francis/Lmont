@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Paper, Stack, Typography } from '@mui/material';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSaleOutlined';
 import { formatMonto, type ListaVentas } from '@lmont/shared';
+import { Reloj } from '../components/Reloj';
 import { useSesion } from '../auth/useSesion';
 import { api } from '../api/client';
 
@@ -21,21 +22,26 @@ export function InicioPage() {
         </Button>
       </Stack>
 
-      {ventas && (
-        <Paper sx={{ p: 2.5 }}>
-          <Typography color="text.secondary">Vendido hoy</Typography>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            {formatMonto(ventas.totales.total)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {ventas.totales.ventas} {ventas.totales.ventas === 1 ? 'venta' : 'ventas'} · {ventas.totales.unidades}{' '}
-            {ventas.totales.unidades === 1 ? 'prenda' : 'prendas'}
-          </Typography>
-          <Button component={RouterLink} to="/ventas?tab=dia" size="small" sx={{ ml: -1, mt: 0.5 }}>
-            Ver ventas del día
-          </Button>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+        <Paper sx={{ p: 2.5, flex: 1, display: 'flex', alignItems: 'center' }}>
+          <Reloj />
         </Paper>
-      )}
+        {ventas && (
+          <Paper sx={{ p: 2.5, flex: 1 }}>
+            <Typography color="text.secondary">Vendido hoy</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+              {formatMonto(ventas.totales.total)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {ventas.totales.ventas} {ventas.totales.ventas === 1 ? 'venta' : 'ventas'} · {ventas.totales.unidades}{' '}
+              {ventas.totales.unidades === 1 ? 'prenda' : 'prendas'}
+            </Typography>
+            <Button component={RouterLink} to="/ventas?tab=dia" size="small" sx={{ ml: -1, mt: 0.5 }}>
+              Ver ventas del día
+            </Button>
+          </Paper>
+        )}
+      </Stack>
 
       {stock && (
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
