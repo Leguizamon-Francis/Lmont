@@ -15,6 +15,7 @@ export * from './schemas/clientes.js';
 export * from './schemas/cambios.js';
 export * from './schemas/promociones.js';
 export * from './schemas/reportes.js';
+export * from './schemas/escaner.js';
 export * from './fechas.js';
 
 /** Forma estándar de los errores que devuelve la API. */

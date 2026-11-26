@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  InputAdornment,
   MenuItem,
   Stack,
   Switch,
@@ -37,6 +38,8 @@ import { aplicarErroresServidor } from '../../api/forms';
 import { useLista, useTalles } from '../../api/catalogo';
 import { SelectorChips } from '../../components/campos';
 import { CantidadesGrid, cantidadesParaApi, claveCombinacion, type Cantidades } from '../../components/CantidadesGrid';
+import { AyudaCelular, BotonCamara, type Resultado } from '../../components/Escaner';
+import { useCodigosRemotos } from '../../escaner/remoto';
 
 /** Código de barras, stock mínimo y activo de una variante. El stock se mueve con ingresos y ventas. */
 export function EditarVarianteDialog({ productoId, variante, onClose }: { productoId: number; variante: Variante; onClose: () => void }) {
@@ -59,14 +62,6 @@ export function EditarVarianteDialog({ productoId, variante, onClose }: { produc
       onClose();
     },
   });
-  const generar = useMutation({
-    mutationFn: () => api<Variante>(`/variantes/${variante.id}/codigo-interno`, { method: 'POST' }),
-    onSuccess: (v) => {
-      form.setValue('codigoBarras', v.codigoBarras ?? '');
-      refrescar();
-    },
-    onError: (e) => setError(aplicarErroresServidor(e, form.setError)),
-  });
   const onSubmit = form.handleSubmit(async (d) => {
     setError(null);
     try {
@@ -75,8 +70,15 @@ export function EditarVarianteDialog({ productoId, variante, onClose }: { produc
       setError(aplicarErroresServidor(e, form.setError));
     }
   });
-  const codigo = form.watch('codigoBarras');
   const [ajustando, setAjustando] = useState(false);
+
+  /** Código leído con la cámara o mandado desde el celular: se completa el campo (se guarda con Guardar). */
+  const ponerCodigo = (codigo: string): Resultado => {
+    form.setValue('codigoBarras', codigo, { shouldDirty: true });
+    form.clearErrors('codigoBarras');
+    return { ok: true, texto: `Código ${codigo}` };
+  };
+  useCodigosRemotos(ponerCodigo, !ajustando);
 
   if (ajustando) {
     return (
@@ -111,13 +113,19 @@ export function EditarVarianteDialog({ productoId, variante, onClose }: { produc
               onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
               error={!!errors.codigoBarras}
               helperText={errors.codigoBarras?.message}
-              slotProps={{ htmlInput: { autoComplete: 'off', style: { fontFamily: 'monospace' } } }}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: { autoComplete: 'off', style: { fontFamily: 'monospace' } },
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <BotonCamara titulo="Escanear la etiqueta" onCodigo={ponerCodigo} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-            {!variante.codigoBarras && !codigo && (
-              <Button onClick={() => generar.mutate()} loading={generar.isPending} sx={{ alignSelf: 'flex-start' }}>
-                No tiene: generar código interno
-              </Button>
-            )}
+            <AyudaCelular />
             <TextField
               label="Stock mínimo"
               {...form.register('stockMinimo')}

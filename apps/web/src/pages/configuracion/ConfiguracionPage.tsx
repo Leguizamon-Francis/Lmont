@@ -6,6 +6,7 @@ import { ListaPanel } from './ListaPanel';
 import { ProveedoresPanel } from './ProveedoresPanel';
 import { MediosPagoPanel } from './MediosPagoPanel';
 import { ConceptosCajaPanel } from './ConceptosCajaPanel';
+import { AparienciaPanel } from './AparienciaPanel';
 
 const SECCIONES = [
   { id: 'vendedores', texto: 'Vendedores', panel: <VendedoresPanel /> },
@@ -15,6 +16,7 @@ const SECCIONES = [
   { id: 'tipos', texto: 'Tipos de prenda', panel: <ListaPanel key="tipos" tipo="tipos" /> },
   { id: 'talles', texto: 'Talles', panel: <ListaPanel key="talles" tipo="talles" /> },
   { id: 'colores', texto: 'Colores', panel: <ListaPanel key="colores" tipo="colores" /> },
+  { id: 'apariencia', texto: 'Apariencia', panel: <AparienciaPanel /> },
   { id: 'cuenta', texto: 'Mi cuenta', panel: <CuentaPanel /> },
 ] as const;
 

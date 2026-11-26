@@ -23,6 +23,7 @@ import { clientesRouter } from './routes/clientes.js';
 import { cambiosRouter } from './routes/cambios.js';
 import { promocionesRouter } from './routes/promociones.js';
 import { reportesRouter } from './routes/reportes.js';
+import { escanerRouter } from './routes/escaner.js';
 
 type Opciones = {
   /** Directorio con el build de React para servirlo (producción). */
@@ -92,6 +93,7 @@ export function createApp(opts: Opciones = {}) {
   api.use('/cambios', cambiosRouter);
   api.use('/promociones', promocionesRouter);
   api.use('/reportes', reportesRouter);
+  api.use('/escaner', escanerRouter);
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
   app.use('/api', api);
 

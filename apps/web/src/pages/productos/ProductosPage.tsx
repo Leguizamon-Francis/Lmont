@@ -19,9 +19,11 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import { formatMonto, type ListaProductos, type VarianteEncontrada } from '@lmont/shared';
-import { api, ApiRequestError, mensajeDeError } from '../../api/client';
-import { pareceCodigo, useLista } from '../../api/catalogo';
+import { formatMonto, type ListaProductos } from '@lmont/shared';
+import { api, mensajeDeError } from '../../api/client';
+import { buscarPorCodigo, nombreVariante, pareceCodigo, useLista } from '../../api/catalogo';
+import { BotonCamara, type Resultado } from '../../components/Escaner';
+import { useCodigosRemotos } from '../../escaner/remoto';
 import { ProductoFormDialog } from './ProductoFormDialog';
 
 const POR_PAGINA = 50;
@@ -68,12 +70,9 @@ export function ProductosPage() {
     setAviso(null);
     if (pareceCodigo(t)) {
       try {
-        const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
-        navigate(`/productos/${v.producto.id}?variante=${v.id}`);
-        return;
-      } catch (err) {
-        if (!(err instanceof ApiRequestError && err.status === 404)) {
-          setAviso(mensajeDeError(err));
+        const v = await buscarPorCodigo(t);
+        if (v) {
+          navigate(`/productos/${v.producto.id}?variante=${v.id}`);
           return;
         }
         if (/^\d+$/.test(t)) {
@@ -81,10 +80,32 @@ export function ProductosPage() {
           setTexto('');
           return;
         }
+      } catch (err) {
+        setAviso(mensajeDeError(err));
+        return;
       }
     }
     cambiar({ q: t });
   };
+
+  /** Código leído con la cámara o mandado desde el celular: abre el producto. */
+  const porCodigo = async (codigo: string): Promise<Resultado> => {
+    setAviso(null);
+    let texto: string;
+    try {
+      const v = await buscarPorCodigo(codigo);
+      if (v) {
+        navigate(`/productos/${v.producto.id}?variante=${v.id}`);
+        return { ok: true, texto: nombreVariante(v) };
+      }
+      texto = `No hay ningún producto con el código ${codigo}`;
+    } catch (err) {
+      texto = mensajeDeError(err);
+    }
+    setAviso(texto);
+    return { ok: false, texto };
+  };
+  useCodigosRemotos((c) => void porCodigo(c));
 
   return (
     <Stack spacing={2} sx={{ maxWidth: 1000 }}>
@@ -110,6 +131,11 @@ export function ProductosPage() {
                   startAdornment: (
                     <InputAdornment position="start">
                       <SearchIcon />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <BotonCamara titulo="Escanear una prenda" onCodigo={porCodigo} />
                     </InputAdornment>
                   ),
                 },

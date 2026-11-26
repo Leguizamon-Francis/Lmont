@@ -11,10 +11,12 @@ import {
   MEDIOS_PAGO,
   nombrePlan,
   type CambioResumen,
-  type VarianteEncontrada,
   type VentaResumen,
 } from '@lmont/shared';
-import { api, ApiRequestError, mensajeDeError } from '../../api/client';
+import { api, mensajeDeError } from '../../api/client';
+import { buscarPorCodigo, nombreVariante } from '../../api/catalogo';
+import { AyudaCelular, BotonCamara, type Resultado } from '../../components/Escaner';
+import { useCodigosRemotos } from '../../escaner/remoto';
 import { ClienteSelector, type ClienteElegido } from '../../components/ClienteSelector';
 
 const fechaLocal = (iso: string) => formatFecha(hoy(new Date(iso)));
@@ -36,19 +38,31 @@ export function CambiosPage() {
   });
   const ultimos = useQuery({ queryKey: ['cambios'], queryFn: () => api<CambioResumen[]>('/cambios') });
 
+  /** Busca las ventas de la prenda (lector, cámara o celular). */
+  const porCodigo = async (t: string): Promise<Resultado> => {
+    setAviso(null);
+    setCodigo('');
+    let texto: string;
+    try {
+      const v = await buscarPorCodigo(t);
+      if (v) {
+        setCliente(null);
+        setBusqueda({ titulo: `Ventas con ${v.producto.tipo.nombre} ${v.producto.nombre} ${v.color.nombre} ${v.talle.nombre}`, url: `/ventas/buscar?varianteId=${v.id}` });
+        return { ok: true, texto: nombreVariante(v) };
+      }
+      texto = `No hay ninguna prenda con el código ${t}.`;
+    } catch (err) {
+      texto = mensajeDeError(err);
+    }
+    setAviso(texto);
+    return { ok: false, texto };
+  };
+  useCodigosRemotos((c) => void porCodigo(c));
+
   const escanear = async (e: FormEvent) => {
     e.preventDefault();
     const t = codigo.trim();
-    setAviso(null);
-    if (!t) return;
-    try {
-      const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
-      setCliente(null);
-      setBusqueda({ titulo: `Ventas con ${v.producto.tipo.nombre} ${v.producto.nombre} ${v.color.nombre} ${v.talle.nombre}`, url: `/ventas/buscar?varianteId=${v.id}` });
-    } catch (err) {
-      setAviso(err instanceof ApiRequestError && err.status === 404 ? `No hay ninguna prenda con el código ${t}.` : mensajeDeError(err));
-    }
-    setCodigo('');
+    if (t) await porCodigo(t);
   };
 
   return (
@@ -72,10 +86,18 @@ export function CambiosPage() {
               label="Código de la prenda"
               placeholder="Escaneá y apretá Enter"
               slotProps={{
-                input: { startAdornment: <InputAdornment position="start"><QrCodeScannerIcon /></InputAdornment> },
+                input: {
+                  startAdornment: <InputAdornment position="start"><QrCodeScannerIcon /></InputAdornment>,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <BotonCamara titulo="Escanear la prenda que trae" onCodigo={porCodigo} />
+                    </InputAdornment>
+                  ),
+                },
                 htmlInput: { enterKeyHint: 'search', autoComplete: 'off' },
               }}
             />
+            <AyudaCelular />
           </Box>
           <Box sx={{ flex: 1 }}>
             <ClienteSelector

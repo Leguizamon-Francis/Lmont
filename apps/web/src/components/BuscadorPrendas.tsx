@@ -21,8 +21,10 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import { formatMonto, type ListaProductos, type ProductoDetalle, type VarianteEncontrada } from '@lmont/shared';
-import { api, ApiRequestError, mensajeDeError } from '../api/client';
-import { pareceCodigo } from '../api/catalogo';
+import { api, mensajeDeError } from '../api/client';
+import { buscarPorCodigo, nombreVariante, pareceCodigo } from '../api/catalogo';
+import { useCodigosRemotos } from '../escaner/remoto';
+import { AyudaCelular, BotonCamara, type Resultado } from './Escaner';
 
 /** Prenda elegida (viene del lector o del buscador). */
 export type Elegida = Pick<VarianteEncontrada, 'id' | 'color' | 'talle' | 'stock' | 'activo'> & {
@@ -73,6 +75,27 @@ export function BuscadorPrendas(props: {
     return a === null;
   };
 
+  /** Código leído con la cámara o mandado desde el celular. */
+  const porCodigo = async (codigo: string): Promise<Resultado> => {
+    setAviso(null);
+    try {
+      const v = await buscarPorCodigo(codigo);
+      if (!v) {
+        const texto = `No hay ninguna prenda con el código ${codigo}. Buscala por nombre.`;
+        setAviso(texto);
+        return { ok: false, texto };
+      }
+      const a = props.onElegir(v);
+      setAviso(a);
+      return a ? { ok: false, texto: a } : { ok: true, texto: `Agregada: ${nombreVariante(v)}` };
+    } catch (err) {
+      const texto = mensajeDeError(err);
+      setAviso(texto);
+      return { ok: false, texto };
+    }
+  };
+  useCodigosRemotos((c) => void porCodigo(c));
+
   const buscar = async (e: FormEvent) => {
     e.preventDefault();
     const t = texto.trim();
@@ -80,16 +103,18 @@ export function BuscadorPrendas(props: {
     if (!t) return;
     if (pareceCodigo(t)) {
       try {
-        const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
-        elegir(v);
-        limpiar();
-        return;
-      } catch (err) {
-        if (!(err instanceof ApiRequestError && err.status === 404)) return setAviso(mensajeDeError(err));
+        const v = await buscarPorCodigo(t);
+        if (v) {
+          elegir(v);
+          limpiar();
+          return;
+        }
         if (/^\d+$/.test(t)) {
           limpiar();
           return setAviso(`No hay ninguna prenda con el código ${t}. Buscala por nombre.`);
         }
+      } catch (err) {
+        return setAviso(mensajeDeError(err));
       }
     }
     // Enter con un nombre: buscar ya, sin esperar.
@@ -109,10 +134,18 @@ export function BuscadorPrendas(props: {
           }}
           placeholder={props.placeholder ?? 'Escaneá el código o escribí el nombre'}
           slotProps={{
-            input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> },
+            input: {
+              startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+              endAdornment: (
+                <InputAdornment position="end">
+                  <BotonCamara continuo titulo="Escanear prendas" onCodigo={porCodigo} />
+                </InputAdornment>
+              ),
+            },
             htmlInput: { enterKeyHint: 'search', 'aria-label': 'Buscar prenda', autoComplete: 'off' },
           }}
         />
+        <AyudaCelular />
       </Box>
       {aviso && <Alert severity="warning" sx={{ mt: 1.5 }} onClose={() => setAviso(null)}>{aviso}</Alert>}
       {busqueda && encontrados.error && <Alert severity="error" sx={{ mt: 1.5 }}>{mensajeDeError(encontrados.error)}</Alert>}

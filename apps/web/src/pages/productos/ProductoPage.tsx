@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Accordion,
   AccordionDetails,
@@ -23,9 +23,8 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/EditOutlined';
 import AddIcon from '@mui/icons-material/Add';
-import QrCodeIcon from '@mui/icons-material/QrCode2';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { formatMonto, type PrecioHistorial, type ProductoDetalle, type Variante } from '@lmont/shared';
+import { formatMonto, type PrecioHistorial, type Variante } from '@lmont/shared';
 import { api, mensajeDeError } from '../../api/client';
 import { useProducto } from '../../api/catalogo';
 import { NoEncontradaPage } from '../NoEncontradaPage';
@@ -39,17 +38,11 @@ export function ProductoPage() {
   const [params] = useSearchParams();
   const resaltada = Number(params.get('variante')) || null;
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const { data: p, isPending, error } = useProducto(id);
 
   const [editando, setEditando] = useState(false);
   const [agregando, setAgregando] = useState(false);
   const [variante, setVariante] = useState<Variante | null>(null);
-
-  const generar = useMutation({
-    mutationFn: () => api<ProductoDetalle>(`/productos/${id}/codigos-internos`, { method: 'POST' }),
-    onSuccess: (d) => qc.setQueryData(['producto', id], d),
-  });
 
   if (!Number.isInteger(id) || id <= 0) return <NoEncontradaPage />;
   if (isPending) return <Typography color="text.secondary">Cargando…</Typography>;
@@ -97,20 +90,14 @@ export function ProductoPage() {
         <Typography variant="h6" sx={{ mr: 'auto' }}>
           Variantes
         </Typography>
-        {sinCodigo > 0 && (
-          <Button startIcon={<QrCodeIcon />} onClick={() => generar.mutate()} loading={generar.isPending}>
-            Generar {sinCodigo === 1 ? 'código interno' : `${sinCodigo} códigos internos`}
-          </Button>
-        )}
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAgregando(true)}>
           Agregar colores o talles
         </Button>
       </Stack>
-      {generar.error && <Alert severity="error">{mensajeDeError(generar.error)}</Alert>}
       {sinCodigo > 0 && (
         <Typography variant="body2" color="text.secondary">
-          Las variantes sin código de barras no se pueden escanear. Cargá el código de la etiqueta del proveedor o generá un
-          código interno para imprimir.
+          Las variantes sin código de barras no se pueden escanear: se venden buscándolas por nombre. Si la etiqueta del
+          proveedor trae código, cargalo tocando la variante.
         </Typography>
       )}
 

@@ -23,6 +23,7 @@ import { CambiosPage } from './pages/cambios/CambiosPage';
 import { NuevoCambio } from './pages/cambios/NuevoCambio';
 import { PromocionesPage } from './pages/promociones/PromocionesPage';
 import { ReportesPage } from './pages/reportes/ReportesPage';
+import { EscanerPage } from './pages/EscanerPage';
 import { ApiRequestError } from './api/client';
 
 const queryClient = new QueryClient({
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
       { path: 'clientes/:id', element: <ClientePage /> },
       { path: 'caja', element: <CajaPage /> },
       { path: 'reportes', element: <ReportesPage /> },
+      { path: 'escaner', element: <EscanerPage /> },
       { path: 'productos', element: <ProductosPage /> },
       { path: 'productos/:id', element: <ProductoPage /> },
       { path: 'stock', element: <StockPage /> },

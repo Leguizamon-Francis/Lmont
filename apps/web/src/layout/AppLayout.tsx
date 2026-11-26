@@ -21,6 +21,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/LogoutOutlined';
 import { MENU } from './menu';
 import { useLogout, useSesion } from '../auth/useSesion';
+import { FONDO_MENU_OSCURO } from '../theme';
 
 const ANCHO = 248;
 
@@ -44,7 +45,12 @@ export function AppLayout() {
   const actual = MENU.find((m) => (m.ruta === '/' ? location.pathname === '/' : location.pathname.startsWith(m.ruta)));
 
   const contenidoMenu = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+    <Box
+      sx={[
+        { display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'primary.main', color: 'primary.contrastText' },
+        (t) => t.applyStyles('dark', { bgcolor: FONDO_MENU_OSCURO, color: 'text.primary' }),
+      ]}
+    >
       <Toolbar>
         <Typography variant="h5" sx={{ fontFamily: 'Georgia, serif', letterSpacing: 1 }}>
           L&apos;Mont

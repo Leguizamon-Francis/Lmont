@@ -6,6 +6,7 @@ import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/ma
 import { loginSchema, type LoginInput } from '@lmont/shared';
 import { useLogin, useSesion } from '../auth/useSesion';
 import { aplicarErroresServidor } from '../api/forms';
+import { FONDO_MENU_OSCURO } from '../theme';
 
 export function LoginPage() {
   const { data: usuario } = useSesion();
@@ -31,7 +32,12 @@ export function LoginPage() {
   const { errors } = form.formState;
 
   return (
-    <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', p: 2, bgcolor: 'primary.main' }}>
+    <Box
+      sx={[
+        { minHeight: '100dvh', display: 'grid', placeItems: 'center', p: 2, bgcolor: 'primary.main' },
+        (t) => t.applyStyles('dark', { bgcolor: FONDO_MENU_OSCURO }),
+      ]}
+    >
       <Paper component="form" onSubmit={onSubmit} noValidate sx={{ p: { xs: 3, sm: 4 }, width: '100%', maxWidth: 380 }}>
         <Stack spacing={2.5}>
           <Box sx={{ textAlign: 'center' }}>

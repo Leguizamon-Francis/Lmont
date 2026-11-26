@@ -40,8 +40,10 @@ import {
   type Proveedor,
   type VarianteEncontrada,
 } from '@lmont/shared';
-import { api, ApiRequestError, mensajeDeError } from '../../api/client';
-import { pareceCodigo } from '../../api/catalogo';
+import { api, mensajeDeError } from '../../api/client';
+import { buscarPorCodigo, nombreVariante, pareceCodigo } from '../../api/catalogo';
+import { AyudaCelular, BotonCamara, type Resultado } from '../../components/Escaner';
+import { useCodigosRemotos } from '../../escaner/remoto';
 import { MontoField } from '../../components/campos';
 
 type ItemBorrador = { varianteId: number; color: string; talle: string; stock: number; cantidad: string };
@@ -120,6 +122,30 @@ export function NuevoIngreso() {
     });
   }
 
+  const noCargado = (codigo: string) => `No hay ninguna prenda con el código ${codigo}. Buscala por nombre y cargale el código desde Productos.`;
+  const sumarUna = (v: VarianteEncontrada) => {
+    sumar(v.producto, [{ ...v, cantidad: 1 }]);
+    const texto = `+1 ${nombreVariante(v)}`;
+    setAgregado(texto);
+    return texto;
+  };
+
+  /** Código leído con la cámara o mandado desde el celular: cada lectura suma 1. */
+  const porCodigo = async (codigo: string): Promise<Resultado> => {
+    setAviso(null);
+    try {
+      const v = await buscarPorCodigo(codigo);
+      if (v) return { ok: true, texto: sumarUna(v) };
+      setAviso(noCargado(codigo));
+      return { ok: false, texto: noCargado(codigo) };
+    } catch (err) {
+      const texto = mensajeDeError(err);
+      setAviso(texto);
+      return { ok: false, texto };
+    }
+  };
+  useCodigosRemotos((c) => void porCodigo(c));
+
   const buscar = async (e: FormEvent) => {
     e.preventDefault();
     const t = texto.trim();
@@ -127,18 +153,19 @@ export function NuevoIngreso() {
     if (!t) return;
     if (pareceCodigo(t)) {
       try {
-        const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
-        sumar(v.producto, [{ ...v, cantidad: 1 }]);
-        setAgregado(`+1 ${v.producto.tipo.nombre} ${v.producto.nombre} · ${v.color.nombre} ${v.talle.nombre}`);
-        setTexto('');
-        setResultados(null);
-        return;
-      } catch (err) {
-        if (!(err instanceof ApiRequestError && err.status === 404)) return setAviso(mensajeDeError(err));
+        const v = await buscarPorCodigo(t);
+        if (v) {
+          sumarUna(v);
+          setTexto('');
+          setResultados(null);
+          return;
+        }
         if (/^\d+$/.test(t)) {
           setTexto('');
-          return setAviso(`No hay ninguna prenda con el código ${t}. Buscala por nombre y cargale el código desde Productos.`);
+          return setAviso(noCargado(t));
         }
+      } catch (err) {
+        return setAviso(mensajeDeError(err));
       }
     }
     try {
@@ -228,10 +255,18 @@ export function NuevoIngreso() {
             }}
             placeholder="Escaneá el código o buscá por nombre y apretá Enter"
             slotProps={{
-              input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> },
+              input: {
+                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <BotonCamara continuo titulo="Escanear lo que llegó" onCodigo={porCodigo} />
+                  </InputAdornment>
+                ),
+              },
               htmlInput: { enterKeyHint: 'search', 'aria-label': 'Buscar prenda', autoComplete: 'off' },
             }}
           />
+          <AyudaCelular />
         </Box>
         {aviso && <Alert severity="warning" sx={{ mt: 1.5 }} onClose={() => setAviso(null)}>{aviso}</Alert>}
         {resultados && (
