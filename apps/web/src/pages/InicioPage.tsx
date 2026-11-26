@@ -58,17 +58,6 @@ export function InicioPage() {
           </Paper>
         </Stack>
       )}
-
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Sistema en construcción
-        </Typography>
-        <Typography color="text.secondary">
-          Ya podés vender escaneando las prendas (el stock se descuenta solo), cargar productos, ingresar mercadería, ajustar el
-          stock, ver lo que se está terminando, llevar la caja, registrar cambios y devoluciones, guardar los clientes con su historial, armar promociones (combos, varias unidades y 2x1) y ver los reportes: ganancia del mes, lo más vendido y lo que no se vende.
-          Falta la importación desde Excel y la sincronización con Tienda Nube.
-        </Typography>
-      </Paper>
     </Stack>
   );
 }
