@@ -20,16 +20,25 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CloseIcon from '@mui/icons-material/Close';
+import LocalOfferIcon from '@mui/icons-material/LocalOfferOutlined';
 import {
+  ajustarPromos,
   aplicarPorcentaje,
+  aplicarPromos,
+  CUOTAS_CREDITO,
   formatMonto,
   MEDIOS_PAGO,
   montoParaInput,
   parseMonto,
+  porcentajeSchema,
+  promosPosibles,
   redondear,
   textoPorcentaje,
+  type ItemParaPromo,
   type MedioPago,
   type PlanPago,
+  type PromoAplicada,
+  type Promocion,
   type Vendedor,
   type VentaDetalle,
   type VentaInput,
@@ -48,14 +57,18 @@ type ItemVenta = {
   precioLista: number;
   precio: string;
   cantidad: number;
+  /** Para saber qué promos le corresponden. */
+  productoId?: number;
+  tipoId?: number;
 };
-type PagoBorrador = { medio: MedioPago | ''; cuotas: number; monto: string };
-type Borrador = { items: ItemVenta[]; pagos: PagoBorrador[]; nota: string; cliente?: ClienteElegido | null };
+/** `recargo`: % que escribe el vendedor cuando paga con crédito. */
+type PagoBorrador = { medio: MedioPago | ''; cuotas: number; monto: string; recargo?: string };
+type Borrador = { items: ItemVenta[]; pagos: PagoBorrador[]; nota: string; cliente?: ClienteElegido | null; promos?: PromoAplicada[] };
 
 const CLAVE_BORRADOR = 'lmont.venta.borrador';
 const CLAVE_VENDEDOR = 'lmont.venta.vendedor';
 const pagoVacio = (): PagoBorrador => ({ medio: '', cuotas: 1, monto: '' });
-const vacio = (): Borrador => ({ items: [], pagos: [pagoVacio()], nota: '', cliente: null });
+const vacio = (): Borrador => ({ items: [], pagos: [pagoVacio()], nota: '', cliente: null, promos: [] });
 
 function leer<T>(clave: string, porDefecto: T): T {
   try {
@@ -73,6 +86,14 @@ function guardar(clave: string, valor: unknown) {
     // Sin almacenamiento: el borrador no se recuerda, pero la venta sigue funcionando.
   }
 }
+/** Lee el recargo que escribió el vendedor ("10", "12,5", vacío = 0). */
+function leerRecargo(texto = ''): { ok: true; value: number } | { ok: false; error: string } {
+  const r = porcentajeSchema.safeParse(texto);
+  if (!r.success) return { ok: false, error: r.error.issues[0]?.message ?? 'Revisá el recargo' };
+  if (r.data < 0) return { ok: false, error: 'El recargo no puede ser negativo' };
+  return { ok: true, value: r.data };
+}
+
 function leerBorrador(): Borrador {
   const b = leer<Borrador | null>(CLAVE_BORRADOR, null);
   return b && Array.isArray(b.items) && Array.isArray(b.pagos) && b.pagos.length ? b : vacio();
@@ -88,6 +109,7 @@ export function NuevaVenta() {
 
   const planes = useQuery({ queryKey: ['planes-pago', 'activos'], queryFn: () => api<PlanPago[]>('/planes-pago?activos=1') });
   const vendedores = useQuery({ queryKey: ['vendedores', 'activos'], queryFn: () => api<Vendedor[]>('/vendedores?activos=1') });
+  const promosVigentes = useQuery({ queryKey: ['promociones', 'vigentes'], queryFn: () => api<Promocion[]>('/promociones?vigentes=1') });
   // Si el vendedor recordado ya no está activo, se vuelve a elegir.
   useEffect(() => {
     if (vendedores.data && vendedorId && !vendedores.data.some((v) => String(v.id) === vendedorId)) setVendedorId('');
@@ -121,6 +143,8 @@ export function NuevaVenta() {
         precioLista: v.producto.precioVenta,
         precio: montoParaInput(v.producto.precioVenta),
         cantidad: 1,
+        productoId: v.producto.id,
+        tipoId: v.producto.tipo.id,
       };
       return { ...x, items: [...x.items, nuevo] };
     });
@@ -143,16 +167,47 @@ export function NuevaVenta() {
   }
   subtotal = redondear(subtotal);
 
+  // Promociones: se descartan solas las que ya no entran (por ejemplo, si se sacó una prenda).
+  const itemsPromo: ItemParaPromo[] = b.items.flatMap((it) => {
+    const p = parseMonto(it.precio);
+    return it.productoId && it.tipoId && p.ok
+      ? [{ varianteId: it.varianteId, productoId: it.productoId, tipoId: it.tipoId, cantidad: it.cantidad, precioUnitario: p.value }]
+      : [];
+  });
+  const listaPromos = promosVigentes.data ?? [];
+  const promosAplicadas = ajustarPromos(itemsPromo, b.promos ?? [], listaPromos);
+  const conPromos = aplicarPromos(itemsPromo, promosAplicadas, listaPromos);
+  const descuentoPromos = conPromos.ok ? conPromos.descuentoTotal : 0;
+  const posibles = promosPosibles(itemsPromo, promosAplicadas, listaPromos);
+  const productos = subtotal;
+  subtotal = redondear(productos - descuentoPromos);
+  const aplicarPromo = (promocionId: number, delta: 1 | -1) =>
+    setB((x) => {
+      const actuales = promosAplicadas;
+      const ya = actuales.find((a) => a.promocionId === promocionId);
+      const promos = ya
+        ? actuales.map((a) => (a === ya ? { ...a, veces: a.veces + delta } : a)).filter((a) => a.veces > 0)
+        : delta > 0
+          ? [...actuales, { promocionId, veces: 1 }]
+          : actuales;
+      return { ...x, promos };
+    });
+
   const medios = [...new Set(planes.data?.map((p) => p.medio) ?? [])];
-  const planesCredito = planes.data?.filter((p) => p.medio === 'CREDITO') ?? [];
+  /** % configurado para ese plan: con crédito es solo el valor inicial del recargo, el vendedor lo puede cambiar. */
+  const porcentajePlan = (medio: MedioPago, cuotas: number) => planes.data?.find((x) => x.medio === medio && x.cuotas === cuotas)?.porcentaje ?? 0;
+  const recargoInicial = (cuotas: number) => {
+    const pct = porcentajePlan('CREDITO', cuotas);
+    return pct > 0 ? String(pct).replace('.', ',') : '';
+  };
   const ultimo = b.pagos.length - 1;
   const montosPrevios = b.pagos.slice(0, ultimo).map((p) => parseMonto(p.monto));
   const resto = redondear(subtotal - montosPrevios.reduce((s, m) => s + (m.ok ? m.value : 0), 0));
   const pagos = b.pagos.map((p, i) => {
     const m = i === ultimo ? resto : montosPrevios[i]!.ok ? montosPrevios[i]!.value : 0;
-    const plan = planes.data?.find((x) => x.medio === p.medio && x.cuotas === p.cuotas);
-    const porcentaje = plan?.porcentaje ?? 0;
-    return { ...p, montoBase: m, porcentaje, ...aplicarPorcentaje(m, porcentaje) };
+    const recargo = p.medio === 'CREDITO' ? leerRecargo(p.recargo) : null;
+    const porcentaje = recargo ? (recargo.ok ? recargo.value : 0) : p.medio ? porcentajePlan(p.medio, p.cuotas) : 0;
+    return { ...p, montoBase: m, recargoError: recargo && !recargo.ok ? recargo.error : null, porcentaje, ...aplicarPorcentaje(m, porcentaje) };
   });
   const total = redondear(pagos.reduce((s, p) => s + p.cobrado, 0));
   const efectivo = pagos.filter((p) => p.medio === 'EFECTIVO').reduce((s, p) => s + p.cobrado, 0);
@@ -181,6 +236,8 @@ export function NuevaVenta() {
     if (vendedores.data?.length && !vendedorId) errs.vendedor = 'Elegí quién vendió';
     b.pagos.forEach((p, i) => {
       if (!p.medio) errs[`medio-${i}`] = 'Elegí el medio de pago';
+      const recargoError = pagos[i]!.recargoError;
+      if (recargoError) errs[`recargo-${i}`] = recargoError;
       if (i < ultimo) {
         const m = montosPrevios[i]!;
         if (!m.ok) errs[`monto-${i}`] = m.error;
@@ -193,9 +250,14 @@ export function NuevaVenta() {
     registrar.mutate({
       vendedorId: vendedorId ? Number(vendedorId) : null,
       clienteId: b.cliente?.id ?? null,
+      promos: promosAplicadas,
       nota: b.nota,
       items: b.items.map((it) => ({ varianteId: it.varianteId, cantidad: it.cantidad, precioUnitario: (parseMonto(it.precio) as { value: number }).value })),
-      pagos: pagos.map((p) => ({ medio: p.medio as MedioPago, cuotas: p.medio === 'CREDITO' ? p.cuotas : 1, monto: p.montoBase })),
+      pagos: pagos.map((p) =>
+        p.medio === 'CREDITO'
+          ? { medio: p.medio, cuotas: p.cuotas, monto: p.montoBase, porcentaje: p.porcentaje }
+          : { medio: p.medio as MedioPago, cuotas: 1, monto: p.montoBase },
+      ),
     });
   };
 
@@ -235,7 +297,7 @@ export function NuevaVenta() {
                       {it.color} · {it.talle} · quedan {it.stock - it.cantidad}
                     </Typography>
                   </Box>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                     <IconButton aria-label="Una menos" disabled={it.cantidad <= 1} onClick={() => cambiarItem(it.varianteId, (x) => ({ ...x, cantidad: x.cantidad - 1 }))}>
                       <RemoveIcon />
                     </IconButton>
@@ -257,7 +319,7 @@ export function NuevaVenta() {
                         errores[`precio-${it.varianteId}`] ??
                         (p.ok && p.value !== it.precioLista ? `Lista ${formatMonto(it.precioLista)}` : undefined)
                       }
-                      sx={{ width: 150 }}
+                      sx={{ width: 150, flexShrink: 0 }}
                     />
                     <Typography sx={{ fontWeight: 600, minWidth: 90, textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {p.ok ? formatMonto(p.value * it.cantidad) : '—'}
@@ -299,9 +361,50 @@ export function NuevaVenta() {
               </Box>
             </Stack>
 
-            <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+            {(promosAplicadas.length > 0 || posibles.length > 0) && (
+              <Stack spacing={1}>
+                {conPromos.ok &&
+                  conPromos.aplicaciones.map((a) => (
+                    <Stack
+                      key={a.promocionId}
+                      direction="row"
+                      sx={{ alignItems: 'center', gap: 1, border: 1, borderColor: 'success.main', borderRadius: 2, px: 1.5, py: 0.5 }}
+                    >
+                      <LocalOfferIcon color="success" fontSize="small" />
+                      <Typography sx={{ flex: 1 }}>
+                        {a.nombre}
+                        {a.veces > 1 ? ` × ${a.veces}` : ''}
+                      </Typography>
+                      <Typography color="success.main" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        − {formatMonto(a.descuento)}
+                      </Typography>
+                      <IconButton size="small" aria-label={`Sacar ${a.nombre}`} onClick={() => aplicarPromo(a.promocionId, -1)}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                {posibles.map(({ promo, ahorro }) => (
+                  <Alert
+                    key={promo.id}
+                    severity="info"
+                    icon={<LocalOfferIcon />}
+                    action={
+                      <Button color="inherit" size="small" onClick={() => aplicarPromo(promo.id, 1)}>
+                        Aplicar
+                      </Button>
+                    }
+                  >
+                    {promosAplicadas.some((a) => a.promocionId === promo.id) ? 'Entra otra vez: ' : 'Entra en la promo '}
+                    <b>{promo.nombre}</b> (ahorra {formatMonto(ahorro)})
+                  </Alert>
+                ))}
+              </Stack>
+            )}
+
+            <Stack direction="row" sx={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
               <Typography color="text.secondary">
                 {unidades} {unidades === 1 ? 'prenda' : 'prendas'}
+                {descuentoPromos > 0 && ` · ${formatMonto(productos)} − promos ${formatMonto(descuentoPromos)}`}
               </Typography>
               <Typography color="text.secondary">Subtotal {formatMonto(subtotal)}</Typography>
             </Stack>
@@ -321,7 +424,7 @@ export function NuevaVenta() {
                 <ToggleButtonGroup
                   exclusive
                   value={p.medio || null}
-                  onChange={(_, m: MedioPago | null) => m && cambiarPago(i, { medio: m, cuotas: m === 'CREDITO' ? (planesCredito[0]?.cuotas ?? 1) : 1 })}
+                  onChange={(_, m: MedioPago | null) => m && cambiarPago(i, { medio: m, cuotas: 1, recargo: m === 'CREDITO' ? recargoInicial(1) : undefined })}
                   sx={{ flexWrap: 'wrap', '& .MuiToggleButton-root': { flex: '1 1 120px', minHeight: 48 } }}
                   aria-label="Medio de pago"
                 >
@@ -338,15 +441,39 @@ export function NuevaVenta() {
                 )}
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5, alignItems: { sm: 'flex-start' } }}>
-                  {p.medio === 'CREDITO' && planesCredito.length > 1 && (
-                    <TextField select size="small" label="Cuotas" value={p.cuotas} onChange={(e) => cambiarPago(i, { cuotas: Number(e.target.value) })} sx={{ minWidth: 200 }}>
-                      {planesCredito.map((pl) => (
-                        <MenuItem key={pl.id} value={pl.cuotas}>
-                          {pl.cuotas} {pl.cuotas === 1 ? 'cuota' : 'cuotas'}
-                          {pl.porcentaje ? ` (${textoPorcentaje(pl.porcentaje)})` : ''}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                  {p.medio === 'CREDITO' && (
+                    <>
+                      <TextField
+                        select
+                        size="small"
+                        label="Cuotas"
+                        value={p.cuotas}
+                        // Si el vendedor no escribió un recargo, se propone el del plan de esas cuotas (si hay uno configurado).
+                        onChange={(e) => {
+                          const cuotas = Number(e.target.value);
+                          const tocado = (p.recargo ?? '') !== recargoInicial(p.cuotas);
+                          cambiarPago(i, tocado ? { cuotas } : { cuotas, recargo: recargoInicial(cuotas) });
+                        }}
+                        sx={{ minWidth: 140 }}
+                      >
+                        {CUOTAS_CREDITO.map((n) => (
+                          <MenuItem key={n} value={n}>
+                            {n === 1 ? '1 pago' : `${n} cuotas`}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        size="small"
+                        label="Recargo %"
+                        placeholder="0"
+                        value={p.recargo ?? ''}
+                        onChange={(e) => cambiarPago(i, { recargo: e.target.value })}
+                        error={!!errores[`recargo-${i}`]}
+                        helperText={errores[`recargo-${i}`] ?? 'Vacío = sin recargo'}
+                        slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                        sx={{ maxWidth: { sm: 140 } }}
+                      />
+                    </>
                   )}
                   {b.pagos.length > 1 &&
                     (i < ultimo ? (
@@ -374,6 +501,12 @@ export function NuevaVenta() {
                   <Typography variant="body2" sx={{ mt: 1 }} color={p.porcentaje < 0 ? 'success.main' : 'warning.main'}>
                     {textoPorcentaje(p.porcentaje)}: {p.ajuste > 0 ? '+' : ''}
                     {formatMonto(p.ajuste)} → se cobra {formatMonto(p.cobrado)}
+                    {p.medio === 'CREDITO' && p.cuotas > 1 && ` (${p.cuotas} cuotas de ${formatMonto(redondear(p.cobrado / p.cuotas))})`}
+                  </Typography>
+                )}
+                {p.medio === 'CREDITO' && !p.porcentaje && p.cuotas > 1 && p.montoBase > 0 && (
+                  <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
+                    Sin recargo: {p.cuotas} cuotas de {formatMonto(redondear(p.cobrado / p.cuotas))}
                   </Typography>
                 )}
               </Box>

@@ -109,7 +109,7 @@ export function NuevoCambio() {
   const devueltos = v.items.filter((it) => (vuelven[it.id] ?? 0) > 0).map((it) => ({ ...it, vuelve: vuelven[it.id]! }));
   const llevadosOk = llevados.map((l) => ({ ...l, p: parseMonto(l.precio) }));
   const { totalDevuelto, totalLlevado, diferencia } = calcularCambio(
-    devueltos.map((d) => ({ cantidad: d.vuelve, precioUnitario: d.precioUnitario })),
+    devueltos.map((d) => ({ cantidad: d.vuelve, precioUnitario: d.precioEfectivo })),
     llevadosOk.map((l) => ({ cantidad: l.cantidad, precioUnitario: l.p.ok ? l.p.value : 0 })),
   );
   const plan = planes.data?.find((p) => p.medio === medio && p.cuotas === (medio === 'CREDITO' ? cuotas : 1));
@@ -118,7 +118,7 @@ export function NuevoCambio() {
   const planesCredito = planes.data?.filter((p) => p.medio === 'CREDITO') ?? [];
 
   /** Precio sugerido: si cambia por otro talle o color del mismo producto, el que pagó; si no, el de lista. */
-  const precioSugerido = (e: Elegida) => devueltos.find((d) => d.variante.producto.id === e.producto.id)?.precioUnitario ?? e.producto.precioVenta;
+  const precioSugerido = (e: Elegida) => devueltos.find((d) => d.variante.producto.id === e.producto.id)?.precioEfectivo ?? e.producto.precioVenta;
 
   function agregar(e: Elegida): string | null {
     const desc = `${e.producto.tipo.nombre} ${e.producto.nombre} ${e.color.nombre} ${e.talle.nombre}`;
@@ -209,7 +209,7 @@ export function NuevoCambio() {
                     {it.variante.producto.tipo.nombre} {it.variante.producto.nombre}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {it.variante.color.nombre} · {it.variante.talle.nombre} · pagó {formatMonto(it.precioUnitario)} c/u
+                    {it.variante.color.nombre} · {it.variante.talle.nombre} · pagó {formatMonto(it.precioEfectivo)} c/u
                     {it.devueltas > 0 && ` · ya ${it.devueltas === 1 ? 'volvió 1' : `volvieron ${it.devueltas}`} de ${it.cantidad}`}
                     {quedan === 0 && ' · ya se devolvió todo'}
                   </Typography>
@@ -253,7 +253,7 @@ export function NuevoCambio() {
                     {l.color} · {l.talle}
                   </Typography>
                 </Box>
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <IconButton aria-label="Una menos" disabled={l.cantidad <= 1} onClick={() => cambiarLlevado(l.varianteId, (x) => ({ ...x, cantidad: x.cantidad - 1 }))}>
                     <RemoveIcon />
                   </IconButton>
@@ -268,7 +268,7 @@ export function NuevoCambio() {
                     onChange={(e) => cambiarLlevado(l.varianteId, (x) => ({ ...x, precio: e.target.value }))}
                     error={!!errores[`precio-${l.varianteId}`]}
                     helperText={errores[`precio-${l.varianteId}`] ?? (l.p.ok && l.p.value !== l.precioLista ? `Lista ${formatMonto(l.precioLista)}` : undefined)}
-                    sx={{ width: 150 }}
+                    sx={{ width: 150, flexShrink: 0 }}
                   />
                   <IconButton aria-label={`Quitar ${l.nombre} ${l.color} ${l.talle}`} onClick={() => cambiarLlevado(l.varianteId, () => null)}>
                     <DeleteIcon />

@@ -16,7 +16,7 @@ export function StockPage() {
   return (
     <Stack spacing={2} sx={{ maxWidth: 900 }}>
       <Typography variant="h4" sx={{ display: { xs: 'none', md: 'block' } }}>
-        Stock y mercadería
+        Stock
       </Typography>
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={actual} onChange={(_, v: number) => setParams({ tab: SECCIONES[v]!.id }, { replace: true })} variant="scrollable" allowScrollButtonsMobile>

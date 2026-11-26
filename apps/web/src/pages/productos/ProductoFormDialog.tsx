@@ -9,6 +9,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControlLabel,
   MenuItem,
   Stack,
@@ -22,10 +23,12 @@ import {
   montoParaInput,
   nuevoProductoSchema,
   productoSchema,
+  type ItemLista,
   type NuevoProductoInput,
   type ProductoDetalle,
 } from '@lmont/shared';
-import { api } from '../../api/client';
+import AddIcon from '@mui/icons-material/Add';
+import { api, ApiRequestError, mensajeDeError } from '../../api/client';
 import { aplicarErroresServidor } from '../../api/forms';
 import { useLista, useTalles } from '../../api/catalogo';
 import { MontoField, SelectorChips } from '../../components/campos';
@@ -58,6 +61,7 @@ export function ProductoFormDialog(props: { producto?: ProductoDetalle; onClose:
   const errors = form.formState.errors;
   const [error, setError] = useState<string | null>(null);
   const [cantidades, setCantidades] = useState<Cantidades>({});
+  const [agregandoTipo, setAgregandoTipo] = useState(false);
   // Colores y talles elegidos, en el orden de las listas.
   const colorIds = (form.watch('colorIds') ?? []).map(Number);
   const talleIds = (form.watch('talleIds') ?? []).map(Number);
@@ -106,6 +110,7 @@ export function ProductoFormDialog(props: { producto?: ProductoDetalle; onClose:
                     label="Tipo de prenda"
                     {...field}
                     value={field.value ?? ''}
+                    onChange={(e) => (e.target.value === NUEVO_TIPO ? setAgregandoTipo(true) : field.onChange(e))}
                     error={!!errors.tipoId}
                     helperText={errors.tipoId?.message}
                   >
@@ -115,6 +120,10 @@ export function ProductoFormDialog(props: { producto?: ProductoDetalle; onClose:
                         {t.nombre}
                       </MenuItem>
                     ))}
+                    {opcionesTipo.length > 0 && <Divider />}
+                    <MenuItem value={NUEVO_TIPO} sx={{ color: 'primary.main', fontWeight: 600, gap: 1 }}>
+                      <AddIcon fontSize="small" /> Agregar un tipo nuevo…
+                    </MenuItem>
                   </TextField>
                 )}
               />
@@ -200,6 +209,65 @@ export function ProductoFormDialog(props: { producto?: ProductoDetalle; onClose:
           <Button onClick={onClose}>Cancelar</Button>
           <Button type="submit" variant="contained" loading={guardar.isPending}>
             {nuevo ? 'Crear producto' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </form>
+      {agregandoTipo && (
+        <NuevoTipoDialog
+          onClose={() => setAgregandoTipo(false)}
+          onCreado={(t) => {
+            form.setValue('tipoId', t.id, { shouldValidate: true });
+            setAgregandoTipo(false);
+          }}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+const NUEVO_TIPO = '__nuevo__';
+
+/** Crea un tipo de prenda sin salir del formulario del producto. */
+function NuevoTipoDialog({ onClose, onCreado }: { onClose: () => void; onCreado: (t: ItemLista) => void }) {
+  const qc = useQueryClient();
+  const [nombre, setNombre] = useState('');
+  const crear = useMutation({
+    mutationFn: () => api<ItemLista>('/tipos', { body: { nombre } }),
+    onSuccess: (t) => {
+      // Que aparezca enseguida en la lista, antes de que se vuelva a pedir.
+      qc.setQueryData<ItemLista[]>(['tipos', 'activos'], (xs) => (xs ? [...xs, t].sort((a, b) => a.nombre.localeCompare(b.nombre)) : xs));
+      qc.invalidateQueries({ queryKey: ['tipos'] });
+      onCreado(t);
+    },
+  });
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="xs">
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation(); // que no se envíe también el formulario del producto
+          crear.mutate();
+        }}
+      >
+        <DialogTitle>Nuevo tipo de prenda</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              autoFocus
+              label="Nombre"
+              placeholder="Ej.: Camperas"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              error={!!crear.error}
+              helperText={crear.error ? ((crear.error instanceof ApiRequestError && crear.error.campos?.nombre) || mensajeDeError(crear.error)) : 'Queda guardado en la lista para los próximos productos.'}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button type="submit" variant="contained" loading={crear.isPending}>
+            Agregar
           </Button>
         </DialogActions>
       </form>

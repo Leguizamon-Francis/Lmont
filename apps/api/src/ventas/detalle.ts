@@ -1,4 +1,4 @@
-import type { CambioDetalle, CambioResumen, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
+import { precioEfectivo, type CambioDetalle, CambioResumen, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { num, selectEncontrada, varianteEncontrada } from '../catalogo/serializar.js';
 import { noEncontrado } from '../http/errors.js';
@@ -66,6 +66,8 @@ export async function buscarVenta(db: Db, id: number): Promise<VentaDetalle> {
       nota: true,
       anuladaEn: true,
       motivoAnulacion: true,
+      descuentoPromos: true,
+      promociones: { orderBy: { id: 'asc' } },
       pagos: { orderBy: { id: 'asc' } },
       items: {
         select: {
@@ -73,6 +75,7 @@ export async function buscarVenta(db: Db, id: number): Promise<VentaDetalle> {
           cantidad: true,
           precioLista: true,
           precioUnitario: true,
+          descuentoPromo: true,
           variante: { select: selectEncontrada },
           devoluciones: { select: { cantidad: true } },
         },
@@ -96,11 +99,23 @@ export async function buscarVenta(db: Db, id: number): Promise<VentaDetalle> {
       cantidad: it.cantidad,
       precioLista: num(it.precioLista),
       precioUnitario: num(it.precioUnitario),
+      descuentoPromo: num(it.descuentoPromo),
+      precioEfectivo: precioEfectivo({ cantidad: it.cantidad, precioUnitario: num(it.precioUnitario), descuentoPromo: num(it.descuentoPromo) }),
       variante: varianteEncontrada(it.variante),
       devueltas: it.devoluciones.reduce((s, d) => s + d.cantidad, 0),
     })),
     pagos: v.pagos.map(pago),
     cambios: v.cambios.map(cambioDetalle),
+    descuentoPromos: num(v.descuentoPromos),
+    promociones: v.promociones.map((p) => ({
+      id: p.id,
+      promocionId: p.promocionId,
+      nombre: p.nombre,
+      veces: p.veces,
+      precioNormal: num(p.precioNormal),
+      precio: num(p.precio),
+      descuento: num(p.descuento),
+    })),
   };
 }
 

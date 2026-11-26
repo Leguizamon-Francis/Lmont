@@ -1,5 +1,5 @@
-import { useState, type FormEvent, type Ref } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, type FormEvent, type Ref } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Alert,
   Box,
@@ -42,9 +42,30 @@ export function BuscadorPrendas(props: {
   autoFocus?: boolean;
 }) {
   const [texto, setTexto] = useState('');
-  const [resultados, setResultados] = useState<ListaProductos['productos'] | null>(null);
+  /** Texto que se busca: se actualiza un ratito después de dejar de escribir. */
+  const [busqueda, setBusqueda] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
   const [eligiendo, setEligiendo] = useState<number | null>(null);
+
+  // Búsqueda mientras se escribe (no para los códigos de barras: esos se buscan con Enter).
+  useEffect(() => {
+    const t = texto.trim();
+    const id = setTimeout(() => setBusqueda(t.length >= 2 && !pareceCodigo(t) ? t : ''), 250);
+    return () => clearTimeout(id);
+  }, [texto]);
+
+  const encontrados = useQuery({
+    queryKey: ['buscar-prendas', busqueda],
+    queryFn: ({ signal }) => api<ListaProductos>(`/productos?activos=1&q=${encodeURIComponent(busqueda)}`, { signal }),
+    enabled: busqueda !== '',
+    placeholderData: keepPreviousData,
+  });
+  const resultados = busqueda ? encontrados.data?.productos : undefined;
+
+  const limpiar = () => {
+    setTexto('');
+    setBusqueda('');
+  };
 
   const elegir = (v: Elegida) => {
     const a = props.onElegir(v);
@@ -61,23 +82,18 @@ export function BuscadorPrendas(props: {
       try {
         const v = await api<VarianteEncontrada>(`/variantes/codigo/${encodeURIComponent(t)}`);
         elegir(v);
-        setTexto('');
-        setResultados(null);
+        limpiar();
         return;
       } catch (err) {
         if (!(err instanceof ApiRequestError && err.status === 404)) return setAviso(mensajeDeError(err));
         if (/^\d+$/.test(t)) {
-          setTexto('');
+          limpiar();
           return setAviso(`No hay ninguna prenda con el código ${t}. Buscala por nombre.`);
         }
       }
     }
-    try {
-      const r = await api<ListaProductos>(`/productos?activos=1&q=${encodeURIComponent(t)}`);
-      setResultados(r.productos);
-    } catch (err) {
-      setAviso(mensajeDeError(err));
-    }
+    // Enter con un nombre: buscar ya, sin esperar.
+    setBusqueda(t);
   };
 
   return (
@@ -89,9 +105,9 @@ export function BuscadorPrendas(props: {
           value={texto}
           onChange={(e) => {
             setTexto(e.target.value);
-            if (!e.target.value) setResultados(null);
+            if (!e.target.value) setBusqueda('');
           }}
-          placeholder={props.placeholder ?? 'Escaneá el código o buscá por nombre y apretá Enter'}
+          placeholder={props.placeholder ?? 'Escaneá el código o escribí el nombre'}
           slotProps={{
             input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> },
             htmlInput: { enterKeyHint: 'search', 'aria-label': 'Buscar prenda', autoComplete: 'off' },
@@ -99,8 +115,9 @@ export function BuscadorPrendas(props: {
         />
       </Box>
       {aviso && <Alert severity="warning" sx={{ mt: 1.5 }} onClose={() => setAviso(null)}>{aviso}</Alert>}
+      {busqueda && encontrados.error && <Alert severity="error" sx={{ mt: 1.5 }}>{mensajeDeError(encontrados.error)}</Alert>}
       {resultados && (
-        <List dense sx={{ mt: 1 }}>
+        <List dense sx={{ mt: 1, opacity: encontrados.isFetching ? 0.6 : 1, transition: 'opacity .2s' }}>
           {resultados.length === 0 && <Typography color="text.secondary" sx={{ px: 1 }}>No se encontró nada con esa búsqueda.</Typography>}
           {resultados.slice(0, 10).map((p) => (
             <ListItemButton key={p.id} onClick={() => setEligiendo(p.id)} disabled={p.stockTotal === 0}>
@@ -120,10 +137,7 @@ export function BuscadorPrendas(props: {
           reservadas={props.reservadas}
           onClose={() => setEligiendo(null)}
           onElegir={(v) => {
-            if (elegir(v)) {
-              setResultados(null);
-              setTexto('');
-            }
+            if (elegir(v)) limpiar();
             setEligiendo(null);
           }}
         />

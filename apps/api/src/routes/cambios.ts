@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { calcularCambio, cambioSchema, errorPagosCambio, type CambioResumen } from '@lmont/shared';
+import { calcularCambio, cambioSchema, errorPagosCambio, precioEfectivo, type CambioResumen } from '@lmont/shared';
 import { prisma } from '../db.js';
 import { handler, HttpError, noEncontrado, validar } from '../http/errors.js';
 import { num } from '../catalogo/serializar.js';
@@ -50,6 +50,7 @@ cambiosRouter.post(
           varianteId: true,
           cantidad: true,
           precioUnitario: true,
+          descuentoPromo: true,
           devoluciones: { select: { cantidad: true } },
           variante: { select: { color: { select: { nombre: true } }, talle: { select: { nombre: true } }, producto: { select: { nombre: true, tipo: { select: { nombre: true } } } } } },
         },
@@ -71,7 +72,9 @@ cambiosRouter.post(
               : `De ${nombre} se ${it.cantidad === 1 ? 'vendió 1' : `vendieron ${it.cantidad}`}${yaDevueltas ? ` y ya ${yaDevueltas === 1 ? 'volvió 1' : `volvieron ${yaDevueltas}`}` : ''}: puede devolver hasta ${quedan}`,
           );
         }
-        return { ...x, varianteId: it.varianteId, precioUnitario: num(it.precioUnitario) };
+        // Se reintegra lo que pagó por unidad, ya con el descuento de la promo si tuvo.
+        const precio = precioEfectivo({ cantidad: it.cantidad, precioUnitario: num(it.precioUnitario), descuentoPromo: num(it.descuentoPromo) });
+        return { ...x, varianteId: it.varianteId, precioUnitario: precio };
       });
 
       // --- Lo que se lleva ---

@@ -71,6 +71,7 @@ export function ConceptosCajaPanel() {
                       <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                         {c.nombre}
                         {!c.activo && <Chip label="Inactivo" size="small" />}
+                        {c.tipo === 'GASTO' && !c.cuentaEnGanancia && <Chip label="No resta en la ganancia" size="small" variant="outlined" />}
                       </Box>
                     }
                   />
@@ -93,11 +94,12 @@ function ConceptoDialog({ concepto, onClose }: { concepto: ConceptoCaja | null; 
   const [nombre, setNombre] = useState(concepto?.nombre ?? '');
   const [tipo, setTipo] = useState<TipoCaja>(concepto?.tipo ?? 'GASTO');
   const [activo, setActivo] = useState(concepto?.activo ?? true);
+  const [cuentaEnGanancia, setCuentaEnGanancia] = useState(concepto?.cuentaEnGanancia ?? true);
   const guardar = useMutation({
     mutationFn: () =>
       concepto
-        ? api(`/caja/conceptos/${concepto.id}`, { method: 'PUT', body: { nombre, tipo, activo } })
-        : api('/caja/conceptos', { body: { nombre, tipo, activo } }),
+        ? api(`/caja/conceptos/${concepto.id}`, { method: 'PUT', body: { nombre, tipo, activo, cuentaEnGanancia } })
+        : api('/caja/conceptos', { body: { nombre, tipo, activo, cuentaEnGanancia } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['caja', 'conceptos'] });
       onClose();
@@ -124,6 +126,17 @@ function ConceptoDialog({ concepto, onClose }: { concepto: ConceptoCaja | null; 
                 </MenuItem>
               ))}
             </TextField>
+            {tipo === 'GASTO' && (
+              <Box>
+                <FormControlLabel
+                  control={<Switch checked={cuentaEnGanancia} onChange={(e) => setCuentaEnGanancia(e.target.checked)} />}
+                  label="Resta en la ganancia"
+                />
+                <Typography variant="caption" color="text.secondary" component="div">
+                  Desactivalo para la plata que sale de la caja pero no es un gasto del local, como un retiro del dueño.
+                </Typography>
+              </Box>
+            )}
             {concepto && <FormControlLabel control={<Switch checked={activo} onChange={(e) => setActivo(e.target.checked)} />} label="Activo (se puede elegir)" />}
             {guardar.error && !Object.keys(campos).length && <Alert severity="error">{mensajeDeError(guardar.error)}</Alert>}
           </Stack>

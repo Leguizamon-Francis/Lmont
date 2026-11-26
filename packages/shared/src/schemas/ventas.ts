@@ -88,12 +88,26 @@ export const ventaItemSchema = z.object({
 });
 export type VentaItemInput = z.input<typeof ventaItemSchema>;
 
-export const ventaPagoSchema = z.object({
-  medio: medioPagoSchema,
-  cuotas: cuotasSchema.default(1),
-  /** Parte del total de la venta que se paga con este medio, antes de recargos o descuentos. */
-  monto: montoSchema.refine((n) => n > 0, 'El monto del pago tiene que ser mayor a 0'),
-});
+/** Cuotas que se pueden elegir al cobrar con tarjeta de crédito. */
+export const CUOTAS_CREDITO = [1, 2, 3, 4, 5, 6, 9, 12, 18, 24] as const;
+
+export const ventaPagoSchema = z
+  .object({
+    medio: medioPagoSchema,
+    cuotas: cuotasSchema.default(1),
+    /** Parte del total de la venta que se paga con este medio, antes de recargos o descuentos. */
+    monto: montoSchema.refine((n) => n > 0, 'El monto del pago tiene que ser mayor a 0'),
+    /**
+     * Recargo de la tarjeta de crédito en %, que pone el vendedor en cada venta.
+     * Si no viene, se usa el % configurado para ese plan (o 0). Los demás medios usan siempre lo configurado.
+     */
+    porcentaje: porcentajeSchema.optional(),
+  })
+  .superRefine((p, ctx) => {
+    if (p.porcentaje === undefined) return;
+    if (p.medio !== 'CREDITO') ctx.addIssue({ code: 'custom', path: ['porcentaje'], message: 'Solo el pago con crédito lleva recargo' });
+    else if (p.porcentaje < 0) ctx.addIssue({ code: 'custom', path: ['porcentaje'], message: 'El recargo no puede ser negativo' });
+  });
 export type VentaPagoInput = z.input<typeof ventaPagoSchema>;
 
 /** Total de los productos de una venta (cantidad × precio cobrado). */
@@ -113,6 +127,11 @@ export const ventaSchema = z
       .array(ventaPagoSchema, { error: 'Elegí el medio de pago' })
       .min(1, 'Elegí el medio de pago')
       .max(4, 'Se pueden combinar hasta 4 medios de pago'),
+    /** Promociones aplicadas (el servidor vuelve a calcular el descuento). */
+    promos: z
+      .array(z.object({ promocionId: idSchema, veces: cantidadSchema(1) }))
+      .max(20, 'Demasiadas promociones en una sola venta')
+      .default([]),
   })
   .superRefine((d, ctx) => {
     const vistas = new Set<number>();
@@ -123,6 +142,13 @@ export const ventaSchema = z
     if (d.pagos.some((p) => p.medio !== 'CREDITO' && p.cuotas !== 1)) {
       ctx.addIssue({ code: 'custom', path: ['pagos'], message: 'Solo el crédito se puede pagar en cuotas' });
     }
+    const promos = new Set<number>();
+    d.promos.forEach((p, i) => {
+      if (promos.has(p.promocionId)) ctx.addIssue({ code: 'custom', path: ['promos', i], message: 'Hay una promoción repetida' });
+      promos.add(p.promocionId);
+    });
+    // Con promos, el total depende del descuento: lo revisa el servidor.
+    if (d.promos.length) return;
     const subtotal = subtotalVenta(d.items);
     const pagado = redondear(d.pagos.reduce((s, p) => s + p.monto, 0));
     if (pagado !== subtotal) {
@@ -162,6 +188,7 @@ export type VentaResumen = {
   unidades: number;
   /** Primeros productos, para mostrar en la lista ("Camisa Oxford, Remera Básica…"). */
   descripcion: string;
+  /** Productos menos el descuento de las promociones. */
   subtotal: number;
   total: number;
   pagos: Pick<VentaPago, 'medio' | 'cuotas' | 'cobrado'>[];
@@ -179,12 +206,18 @@ export type VentaDetalle = Omit<VentaResumen, 'pagos'> & {
     cantidad: number;
     precioLista: number;
     precioUnitario: number;
+    /** Descuento de promociones que le tocó a este ítem (total). */
+    descuentoPromo: number;
+    /** Lo que se pagó por unidad después de las promociones (lo que se reintegra si la devuelve). */
+    precioEfectivo: number;
     variante: VarianteEncontrada;
     /** Unidades que el cliente ya devolvió (en cambios o devoluciones). */
     devueltas: number;
   }[];
   pagos: VentaPago[];
   cambios: CambioDetalle[];
+  descuentoPromos: number;
+  promociones: { id: number; promocionId: number; nombre: string; veces: number; precioNormal: number; precio: number; descuento: number }[];
 };
 
 export type TotalesVentas = {
@@ -195,3 +228,7 @@ export type TotalesVentas = {
 };
 
 export type ListaVentas = { fecha: string; ventas: VentaResumen[]; totales: TotalesVentas };
+
+/** Precio por unidad después del descuento de promociones (lo que se reintegra si se devuelve). */
+export const precioEfectivo = (it: { cantidad: number; precioUnitario: number; descuentoPromo: number }) =>
+  redondear((it.cantidad * it.precioUnitario - it.descuentoPromo) / it.cantidad);

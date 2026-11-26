@@ -21,6 +21,8 @@ import { planesPagoRouter } from './routes/planesPago.js';
 import { cajaRouter } from './routes/caja.js';
 import { clientesRouter } from './routes/clientes.js';
 import { cambiosRouter } from './routes/cambios.js';
+import { promocionesRouter } from './routes/promociones.js';
+import { reportesRouter } from './routes/reportes.js';
 
 type Opciones = {
   /** Directorio con el build de React para servirlo (producción). */
@@ -88,6 +90,8 @@ export function createApp(opts: Opciones = {}) {
   api.use('/caja', cajaRouter);
   api.use('/clientes', clientesRouter);
   api.use('/cambios', cambiosRouter);
+  api.use('/promociones', promocionesRouter);
+  api.use('/reportes', reportesRouter);
   api.use((_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')));
   app.use('/api', api);
 

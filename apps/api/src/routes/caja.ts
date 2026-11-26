@@ -277,7 +277,7 @@ cajaRouter.delete(
 // Conceptos
 // ---------------------------------------------------------------------------
 
-const selectConcepto = { id: true, nombre: true, tipo: true, activo: true } as const;
+const selectConcepto = { id: true, nombre: true, tipo: true, activo: true, cuentaEnGanancia: true } as const;
 
 cajaRouter.get(
   '/conceptos',

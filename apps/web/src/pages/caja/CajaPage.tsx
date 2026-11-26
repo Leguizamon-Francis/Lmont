@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
@@ -7,7 +7,6 @@ import {
   Button,
   Chip,
   Divider,
-  IconButton,
   List,
   ListItemButton,
   ListItemText,
@@ -18,8 +17,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import {
@@ -37,6 +34,7 @@ import {
 import { api, mensajeDeError } from '../../api/client';
 import { moverDia, moverMes } from '../../fechas';
 import { MovimientoCajaDialog } from './MovimientoCajaDialog';
+import { Fila, Navegador } from '../../components/resumen';
 
 export function CajaPage() {
   const [params, setParams] = useSearchParams();
@@ -59,33 +57,6 @@ export function CajaPage() {
 
 // ---------------------------------------------------------------------------
 
-function Navegador(props: { anterior: () => void; siguiente?: () => void; children: ReactNode }) {
-  return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-      <IconButton aria-label="Anterior" onClick={props.anterior}>
-        <ChevronLeftIcon />
-      </IconButton>
-      {props.children}
-      <IconButton aria-label="Siguiente" disabled={!props.siguiente} onClick={props.siguiente}>
-        <ChevronRightIcon />
-      </IconButton>
-    </Stack>
-  );
-}
-
-function Fila({ texto, valor, fuerte, color }: { texto: ReactNode; valor: string; fuerte?: boolean; color?: string }) {
-  return (
-    <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2, alignItems: 'baseline' }}>
-      <Typography color={fuerte ? undefined : 'text.secondary'} sx={{ fontWeight: fuerte ? 600 : undefined }}>
-        {texto}
-      </Typography>
-      <Typography sx={{ fontWeight: fuerte ? 700 : 600, whiteSpace: 'nowrap' }} color={color}>
-        {valor}
-      </Typography>
-    </Stack>
-  );
-}
-
 /** Resumen: ventas + otros ingresos − gastos = saldo, y el efectivo. */
 function Resumen({ t, titulo, cantidadVentas }: { t: TotalesCaja; titulo: string; cantidadVentas?: number }) {
   return (
@@ -99,10 +70,7 @@ function Resumen({ t, titulo, cantidadVentas }: { t: TotalesCaja; titulo: string
         <Fila texto="Otros ingresos" valor={formatMonto(t.otrosIngresos)} />
         <Fila texto="Gastos" valor={t.gastos ? `− ${formatMonto(t.gastos)}` : formatMonto(0)} color={t.gastos ? 'error' : undefined} />
         <Divider sx={{ my: 0.5 }} />
-        <Fila texto="Movimiento en efectivo" valor={formatMonto(t.efectivo)} fuerte />
-        <Typography variant="caption" color="text.secondary">
-          Ventas en efectivo + ingresos en efectivo − gastos pagados en efectivo. No incluye lo que ya había en la caja antes.
-        </Typography>
+        <Fila texto="Total" valor={formatMonto(t.efectivo)} fuerte />
       </Stack>
     </Paper>
   );
@@ -319,7 +287,7 @@ function CajaDelMes() {
           </Paper>
           <Typography variant="body2" color="text.secondary">
             El saldo de caja es lo que entró menos lo que salió. No es la ganancia: para eso también hay que restar el costo de lo vendido
-            (va a estar en Reportes).
+            (eso está en Reportes).
           </Typography>
         </Stack>
       )}

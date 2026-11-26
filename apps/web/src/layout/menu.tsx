@@ -18,10 +18,10 @@ export const MENU: ItemMenu[] = [
   { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon />, disponible: true },
   { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon />, disponible: true },
   { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon />, disponible: true },
-  { texto: 'Stock y mercadería', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
-  { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon />, disponible: false },
+  { texto: 'Stock', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
+  { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon />, disponible: true },
   { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon />, disponible: true },
   { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon />, disponible: true },
-  { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon />, disponible: false },
+  { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon />, disponible: true },
   { texto: 'Configuración', ruta: '/configuracion', icono: <SettingsIcon />, disponible: true },
 ];

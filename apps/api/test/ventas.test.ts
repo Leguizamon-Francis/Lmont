@@ -159,13 +159,29 @@ describe('ventas', () => {
     expect((await agent.get(`/api/ventas/${r.body.id}`)).body.total).toBe(87000);
   });
 
-  it('rechaza planes de cuotas que no existen o están deshabilitados', async () => {
+  it('con crédito el vendedor elige las cuotas y escribe el recargo', async () => {
     const venta = (pago: object) => ({ items: [{ varianteId: remeraS, cantidad: 1, precioUnitario: 15000 }], pagos: [{ monto: 15000, ...pago }] });
-    const r = await agent.post('/api/ventas').send(venta({ medio: 'CREDITO', cuotas: 6 })).expect(400);
-    expect(r.body.error).toBe('El pago con Crédito 6 cuotas no está habilitado. Revisá los medios de pago en Configuración.');
+    // 6 cuotas no está configurado: igual se puede, con el recargo que pone el vendedor.
+    const r = await agent.post('/api/ventas').send(venta({ medio: 'CREDITO', cuotas: 6, porcentaje: '12,5' })).expect(201);
+    expect(r.body.pagos[0]).toMatchObject({ medio: 'CREDITO', cuotas: 6, porcentaje: 12.5, ajuste: 1875, cobrado: 16875 });
+    // Sin recargo escrito: va el % del plan (acá no hay plan de 6 cuotas, así que 0).
+    const sin = await agent.post('/api/ventas').send(venta({ medio: 'CREDITO', cuotas: 6 })).expect(201);
+    expect(sin.body.pagos[0]).toMatchObject({ porcentaje: 0, cobrado: 15000 });
+    // El recargo es solo para crédito y no puede ser negativo.
+    await agent.post('/api/ventas').send(venta({ medio: 'EFECTIVO', porcentaje: 10 })).expect(400);
+    await agent.post('/api/ventas').send(venta({ medio: 'CREDITO', porcentaje: -5 })).expect(400);
+    expect(await stockDe(remeraS)).toBe(3);
+  });
+
+  it('rechaza medios de pago deshabilitados', async () => {
+    const venta = (pago: object) => ({ items: [{ varianteId: remeraS, cantidad: 1, precioUnitario: 15000 }], pagos: [{ monto: 15000, ...pago }] });
     const transf = await planDe('TRANSFERENCIA');
     await agent.put(`/api/planes-pago/${transf.id}`).send({ porcentaje: 0, activo: false }).expect(200);
     await agent.post('/api/ventas').send(venta({ medio: 'TRANSFERENCIA' })).expect(400);
+    const credito = await planDe('CREDITO');
+    await agent.put(`/api/planes-pago/${credito.id}`).send({ porcentaje: 0, activo: false }).expect(200);
+    const r = await agent.post('/api/ventas').send(venta({ medio: 'CREDITO', cuotas: 3, porcentaje: 10 })).expect(400);
+    expect(r.body.error).toBe('El pago con Crédito no está habilitado. Revisá los medios de pago en Configuración.');
     expect(await stockDe(remeraS)).toBe(5);
   });
 

@@ -1,7 +1,7 @@
 // Modelo de datos de L'Mont.
 // Etapa 1: usuarios, vendedores y sesiones.
 // Etapa 2: catálogo (tipos de prenda, talles, colores, productos, variantes e historial de precios).
-// Etapas 3 a 6: stock, ventas, caja, clientes y cambios.
+// Etapas 3 a 8: stock, ventas, caja, clientes, cambios, promociones y reportes.
 
 generator client {
   provider = "prisma-client"
@@ -64,6 +64,7 @@ model TipoPrenda {
   activo    Boolean    @default(true)
   creadoEn  DateTime   @default(now()) @map("creado_en")
   productos Producto[]
+  promocionComponentes PromocionComponente[]
 
   @@map("tipos_prenda")
 }
@@ -109,6 +110,7 @@ model Producto {
   actualizadoEn DateTime          @updatedAt @map("actualizado_en")
   variantes     Variante[]
   precios       PrecioHistorial[]
+  promocionComponentes PromocionComponente[]
 
   @@unique([tipoId, nombre])
   @@map("productos")
@@ -281,8 +283,10 @@ model Venta {
   /// Cliente (opcional).
   clienteId       Int?              @map("cliente_id")
   cliente         Cliente?          @relation(fields: [clienteId], references: [id])
-  /// Suma de cantidad × precio cobrado de los productos.
+  /// Suma de cantidad × precio cobrado de los productos, menos el descuento de las promociones.
   subtotal        Decimal           @db.Decimal(12, 2)
+  /// Descuento total de las promociones aplicadas.
+  descuentoPromos Decimal           @default(0) @map("descuento_promos") @db.Decimal(12, 2)
   /// Lo que se cobró en total, con recargos y descuentos de los medios de pago.
   total           Decimal           @db.Decimal(12, 2)
   nota            String?
@@ -293,6 +297,7 @@ model Venta {
   pagos           VentaPago[]
   movimientos     MovimientoStock[]
   cambios         Cambio[]
+  promociones     VentaPromocion[]
 
   @@index([creadoEn])
   @@index([clienteId])
@@ -312,6 +317,8 @@ model VentaItem {
   precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
   /// Precio de compra en ese momento, para calcular la ganancia.
   costoUnitario  Decimal  @map("costo_unitario") @db.Decimal(12, 2)
+  /// Parte del descuento de promociones que le toca a este ítem (en total, no por unidad).
+  descuentoPromo Decimal  @default(0) @map("descuento_promo") @db.Decimal(12, 2)
   devoluciones   CambioDevuelto[]
 
   @@unique([ventaId, varianteId])
@@ -336,6 +343,73 @@ model VentaPago {
 
   @@index([ventaId])
   @@map("venta_pagos")
+}
+
+// ---------------------------------------------------------------------------
+// Promociones
+// ---------------------------------------------------------------------------
+
+enum ModoPromocion {
+  /// Las prendas de la promo cuestan un precio fijo (combo o "3 por $X").
+  PRECIO_FIJO
+  /// Lleva N, paga M (2x1, 3x2): las más baratas salen gratis.
+  NXM
+}
+
+model Promocion {
+  id           Int                   @id @default(autoincrement())
+  nombre       String                @unique
+  modo         ModoPromocion
+  /// Para PRECIO_FIJO.
+  precio       Decimal?              @db.Decimal(12, 2)
+  /// Para NXM: cuántas paga de las que lleva.
+  pagaCantidad Int?                  @map("paga_cantidad")
+  /// Vigencia opcional (inclusive).
+  desde        DateTime?             @db.Date
+  hasta        DateTime?             @db.Date
+  activo       Boolean               @default(true)
+  /// Eliminada por el usuario pero usada en ventas: no se borra para no romper esas ventas, solo deja de verse.
+  eliminada    Boolean               @default(false)
+  creadoEn     DateTime              @default(now()) @map("creado_en")
+  componentes  PromocionComponente[]
+  ventas       VentaPromocion[]
+
+  @@map("promociones")
+}
+
+/// Qué lleva la promo: N unidades de un producto, o de cualquier producto de un tipo de prenda.
+model PromocionComponente {
+  id          Int         @id @default(autoincrement())
+  promocionId Int         @map("promocion_id")
+  promocion   Promocion   @relation(fields: [promocionId], references: [id], onDelete: Cascade)
+  productoId  Int?        @map("producto_id")
+  producto    Producto?   @relation(fields: [productoId], references: [id])
+  tipoId      Int?        @map("tipo_id")
+  tipo        TipoPrenda? @relation(fields: [tipoId], references: [id])
+  cantidad    Int
+
+  @@index([promocionId])
+  @@map("promocion_componentes")
+}
+
+/// Promoción aplicada en una venta (con los valores de ese momento).
+model VentaPromocion {
+  id           Int       @id @default(autoincrement())
+  ventaId      Int       @map("venta_id")
+  venta        Venta     @relation(fields: [ventaId], references: [id])
+  promocionId  Int       @map("promocion_id")
+  promocion    Promocion @relation(fields: [promocionId], references: [id])
+  nombre       String
+  /// Cuántas veces se aplicó (dos combos en la misma venta = 2).
+  veces        Int
+  /// Lo que costaban esas prendas sin la promo.
+  precioNormal Decimal   @map("precio_normal") @db.Decimal(12, 2)
+  precio       Decimal   @db.Decimal(12, 2)
+  descuento    Decimal   @db.Decimal(12, 2)
+
+  @@index([ventaId])
+  @@index([promocionId])
+  @@map("venta_promociones")
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +529,8 @@ model ConceptoCaja {
   nombre      String
   tipo        TipoCaja
   activo      Boolean          @default(true)
+  /// Solo gastos: si resta en la ganancia de Reportes. Un retiro del dueño no es un gasto del negocio.
+  cuentaEnGanancia Boolean     @default(true) @map("cuenta_en_ganancia")
   movimientos MovimientoCaja[]
 
   @@unique([nombre, tipo])

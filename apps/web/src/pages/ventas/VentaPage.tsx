@@ -114,6 +114,7 @@ export function VentaPage() {
                 <Typography variant="body2" color="text.secondary">
                   {it.variante.color.nombre} · {it.variante.talle.nombre} · {it.cantidad} × {formatMonto(it.precioUnitario)}
                   {it.precioUnitario !== it.precioLista && ` (lista ${formatMonto(it.precioLista)})`}
+                  {it.descuentoPromo > 0 && ` · con promo ${formatMonto(it.precioEfectivo)} c/u`}
                 </Typography>
                 {it.devueltas > 0 && (
                   <Chip
@@ -133,6 +134,14 @@ export function VentaPage() {
 
       <Paper sx={{ p: 2 }}>
         <Stack spacing={1}>
+          {v.promociones.length > 0 && (
+            <>
+              <Fila texto="Productos" valor={formatMonto(v.subtotal + v.descuentoPromos)} />
+              {v.promociones.map((p) => (
+                <Fila key={p.id} texto={`Promo ${p.nombre}${p.veces > 1 ? ` × ${p.veces}` : ''}`} valor={`− ${formatMonto(p.descuento)}`} />
+              ))}
+            </>
+          )}
           <Fila texto="Subtotal" valor={formatMonto(v.subtotal)} />
           {v.pagos.map((p) => (
             <Box key={p.id}>

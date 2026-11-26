@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   anularVentaSchema,
+  aplicarPromos,
+  formatMonto,
   hoy,
   idSchema,
   rangoDelDia,
@@ -16,6 +18,7 @@ import { prisma } from '../db.js';
 import { handler, HttpError, noEncontrado, validar } from '../http/errors.js';
 import { moverStock } from '../catalogo/stock.js';
 import { calcularPagos, prendasVendibles, verificarStock } from '../ventas/salida.js';
+import { promocionesVigentes } from './promociones.js';
 import { buscarVenta, resumenVenta, selectResumenVenta } from '../ventas/detalle.js';
 
 export const ventasRouter = Router();
@@ -108,6 +111,24 @@ ventasRouter.post(
 
       const porId = await prendasVendibles(tx, d.items.map((it) => it.varianteId));
       await verificarStock(tx, d.items, porId);
+
+      // Promociones: se recalculan acá con las promos vigentes; lo que mande la pantalla es solo qué se eligió.
+      const promos = d.promos.length ? await promocionesVigentes(tx) : [];
+      const conPromos = aplicarPromos(
+        d.items.map((it) => {
+          const p = porId.get(it.varianteId)!.producto;
+          return { ...it, productoId: p.id, tipoId: p.tipoId };
+        }),
+        d.promos,
+        promos,
+      );
+      if (!conPromos.ok) throw new HttpError(400, conPromos.error, { promos: conPromos.error });
+      const subtotal = redondear(subtotalVenta(d.items) - conPromos.descuentoTotal);
+      const pagado = redondear(d.pagos.reduce((s, p) => s + p.monto, 0));
+      if (pagado !== subtotal) {
+        const msg = `Los pagos suman ${formatMonto(pagado)} y la venta es de ${formatMonto(subtotal)}: tienen que coincidir`;
+        throw new HttpError(400, msg, { pagos: msg });
+      }
       const pagos = await calcularPagos(tx, d.pagos);
 
       const venta = await tx.venta.create({
@@ -115,15 +136,24 @@ ventasRouter.post(
           vendedorId: d.vendedorId ?? null,
           clienteId: d.clienteId ?? null,
           nota: d.nota,
-          subtotal: subtotalVenta(d.items),
+          subtotal,
+          descuentoPromos: conPromos.descuentoTotal,
           total: redondear(pagos.reduce((s, p) => s + p.cobrado, 0)),
           items: {
             create: d.items.map((it) => {
               const p = porId.get(it.varianteId)!.producto;
-              return { varianteId: it.varianteId, cantidad: it.cantidad, precioUnitario: it.precioUnitario, precioLista: p.precioVenta, costoUnitario: p.precioCompra };
+              return {
+                varianteId: it.varianteId,
+                cantidad: it.cantidad,
+                precioUnitario: it.precioUnitario,
+                precioLista: p.precioVenta,
+                costoUnitario: p.precioCompra,
+                descuentoPromo: conPromos.descuentos.get(it.varianteId) ?? 0,
+              };
             }),
           },
           pagos: { create: pagos },
+          promociones: { create: conPromos.aplicaciones },
         },
         select: { id: true },
       });
