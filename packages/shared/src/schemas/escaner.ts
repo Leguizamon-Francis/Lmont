@@ -9,7 +9,11 @@ export const escaneoSchema = z.object({
     .max(40, 'El código de barras puede tener hasta 40 caracteres')
     .regex(/^[0-9A-Za-z-]+$/, 'El código de barras solo puede tener letras, números y guiones'),
 });
-export type EscaneoInput = z.input<typeof escaneoSchema>;
 
-/** Respuesta al mandar un código: cuántas pantallas lo estaban esperando. */
-export type EscaneoEnviado = { pantallas: number };
+/** Respuesta al celular: si alguna pantalla tomó el código. */
+export type EscaneoEnviado = { entregado: boolean };
+
+/** La pantalla que recibió el código lo confirma con el id del aviso. */
+export const escaneoRecibidoSchema = z.object({ id: z.string().uuid('Aviso inválido') });
+/** `usar`: si esta pantalla fue la primera en tomarlo (las demás lo ignoran). */
+export type EscaneoRecibido = { usar: boolean };

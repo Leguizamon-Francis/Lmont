@@ -1,4 +1,4 @@
-import { precioEfectivo, type CambioDetalle, CambioResumen, type MotivoCambio, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
+import { factorDescuentoMedios, pagadoItem, precioEfectivo, type CambioDetalle, CambioResumen, type MotivoCambio, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { num, selectEncontrada, varianteEncontrada } from '../catalogo/serializar.js';
 import { noEncontrado } from '../http/errors.js';
@@ -89,6 +89,8 @@ export async function buscarVenta(db: Db, id: number): Promise<VentaDetalle> {
     ...v,
     items: v.items.map((it) => ({ cantidad: it.cantidad, variante: { producto: it.variante.producto } })),
   });
+  const cobrado = (it: (typeof v.items)[number]) => ({ cantidad: it.cantidad, precioUnitario: num(it.precioUnitario), descuentoPromo: num(it.descuentoPromo) });
+  const factor = factorDescuentoMedios(v.items.map(cobrado), v.pagos.map((p) => ({ ajuste: num(p.ajuste) })));
   return {
     ...base,
     nota: v.nota,
@@ -100,7 +102,8 @@ export async function buscarVenta(db: Db, id: number): Promise<VentaDetalle> {
       precioLista: num(it.precioLista),
       precioUnitario: num(it.precioUnitario),
       descuentoPromo: num(it.descuentoPromo),
-      precioEfectivo: precioEfectivo({ cantidad: it.cantidad, precioUnitario: num(it.precioUnitario), descuentoPromo: num(it.descuentoPromo) }),
+      precioEfectivo: precioEfectivo(cobrado(it), factor),
+      pagado: pagadoItem(cobrado(it), factor),
       variante: varianteEncontrada(it.variante),
       devueltas: it.devoluciones.reduce((s, d) => s + d.cantidad, 0),
     })),

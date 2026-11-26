@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { calcularCambio, cambioSchema, errorPagosCambio, precioEfectivo, type CambioResumen } from '@lmont/shared';
+import { calcularCambio, cambioSchema, errorPagosCambio, factorDescuentoMedios, pagadoItem, redondear, reintegroItem, type CambioResumen } from '@lmont/shared';
 import { prisma } from '../db.js';
 import { handler, HttpError, noEncontrado, validar } from '../http/errors.js';
 import { num } from '../catalogo/serializar.js';
+import type { Prisma } from '../generated/prisma/client.js';
 import { bloquearVariante, moverStock } from '../catalogo/stock.js';
 import { buscarVenta, resumenCambio, selectResumenCambio } from '../ventas/detalle.js';
 import { calcularPagos, nombreVariante, prendasVendibles, verificarStock } from '../ventas/salida.js';
@@ -43,6 +44,17 @@ cambiosRouter.post(
       }
 
       // --- Lo que vuelve ---
+      // Se reintegra lo que pagó: con la promo y con el descuento del medio de pago (los recargos no).
+      const cobro = await tx.venta.findUniqueOrThrow({
+        where: { id: d.ventaId },
+        select: { items: { select: { cantidad: true, precioUnitario: true, descuentoPromo: true } }, pagos: { select: { ajuste: true } } },
+      });
+      const cobrado = (it: { cantidad: number; precioUnitario: Prisma.Decimal; descuentoPromo: Prisma.Decimal }) => ({
+        cantidad: it.cantidad,
+        precioUnitario: num(it.precioUnitario),
+        descuentoPromo: num(it.descuentoPromo),
+      });
+      const factor = factorDescuentoMedios(cobro.items.map(cobrado), cobro.pagos.map((p) => ({ ajuste: num(p.ajuste) })));
       const vendidos = await tx.ventaItem.findMany({
         where: { ventaId: d.ventaId, id: { in: d.devueltos.map((x) => x.ventaItemId) } },
         select: {
@@ -72,9 +84,8 @@ cambiosRouter.post(
               : `De ${nombre} se ${it.cantidad === 1 ? 'vendió 1' : `vendieron ${it.cantidad}`}${yaDevueltas ? ` y ya ${yaDevueltas === 1 ? 'volvió 1' : `volvieron ${yaDevueltas}`}` : ''}: puede devolver hasta ${quedan}`,
           );
         }
-        // Se reintegra lo que pagó por unidad, ya con el descuento de la promo si tuvo.
-        const precio = precioEfectivo({ cantidad: it.cantidad, precioUnitario: num(it.precioUnitario), descuentoPromo: num(it.descuentoPromo) });
-        return { ...x, varianteId: it.varianteId, precioUnitario: precio };
+        const importe = reintegroItem(pagadoItem(cobrado(it), factor), it.cantidad, yaDevueltas, x.cantidad);
+        return { ...x, varianteId: it.varianteId, importe, precioUnitario: redondear(importe / x.cantidad) };
       });
 
       // --- Lo que se lleva ---

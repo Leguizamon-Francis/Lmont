@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,6 +22,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import {
   aplicarPorcentaje,
   calcularCambio,
+  reintegroItem,
   errorPagosCambio,
   formatFecha,
   formatMonto,
@@ -71,6 +72,9 @@ export function NuevoCambio() {
   const [nota, setNota] = useState('');
   const [motivo, setMotivo] = useState<MotivoCambio | ''>('');
   const [errores, setErrores] = useState<Record<string, string>>({});
+  // Unidades ya elegidas de cada prenda (referencia: ver NuevaVenta).
+  const enElCambio = useRef(new Map<number, number>());
+  enElCambio.current = new Map(llevados.map((l) => [l.varianteId, l.cantidad]));
 
   const v = venta.data;
   // Si se vendió una sola prenda, ya queda marcada.
@@ -112,7 +116,7 @@ export function NuevoCambio() {
   const devueltos = v.items.filter((it) => (vuelven[it.id] ?? 0) > 0).map((it) => ({ ...it, vuelve: vuelven[it.id]! }));
   const llevadosOk = llevados.map((l) => ({ ...l, p: parseMonto(l.precio) }));
   const { totalDevuelto, totalLlevado, diferencia } = calcularCambio(
-    devueltos.map((d) => ({ cantidad: d.vuelve, precioUnitario: d.precioEfectivo })),
+    devueltos.map((d) => ({ importe: reintegroItem(d.pagado, d.cantidad, d.devueltas, d.vuelve) })),
     llevadosOk.map((l) => ({ cantidad: l.cantidad, precioUnitario: l.p.ok ? l.p.value : 0 })),
   );
   const plan = planes.data?.find((p) => p.medio === medio && p.cuotas === (medio === 'CREDITO' ? cuotas : 1));
@@ -129,8 +133,9 @@ export function NuevoCambio() {
     // Si cambia por la misma prenda (por una falla), la que vuelve también cuenta.
     const vuelveIgual = devueltos.filter((d) => d.variante.id === e.id).reduce((s, d) => s + d.vuelve, 0);
     const disponibles = e.stock + vuelveIgual;
-    const actual = llevados.find((l) => l.varianteId === e.id)?.cantidad ?? 0;
+    const actual = enElCambio.current.get(e.id) ?? 0;
     if (actual + 1 > disponibles) return disponibles === 0 ? `No hay stock de ${desc}.` : `No hay más stock de ${desc}.`;
+    enElCambio.current.set(e.id, actual + 1);
     setLlevados((xs) => {
       const i = xs.findIndex((l) => l.varianteId === e.id);
       if (i >= 0) return xs.map((l, j) => (j === i ? { ...l, cantidad: l.cantidad + 1 } : l));

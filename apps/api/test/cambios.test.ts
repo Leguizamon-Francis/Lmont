@@ -232,3 +232,16 @@ describe('cambios y devoluciones', () => {
     expect(lista[0]).toMatchObject({ ventaId: v1.id, devolucion: true, diferencia: -15000, descripcion: 'Vuelve: Remera Básica Negro S' });
   });
 });
+
+describe('reintegro con descuento por medio de pago', () => {
+  it('devuelve lo que pagó con el descuento del efectivo, no el precio de lista', async () => {
+    await prisma.planPago.updateMany({ where: { medio: 'EFECTIVO' }, data: { porcentaje: -10 } });
+    const v = await vender([{ varianteId: remeraS, cantidad: 1, precioUnitario: 15000 }]); // cobró 13.500
+    expect(v.items[0]).toMatchObject({ precioEfectivo: 13500, pagado: 13500 });
+    const r = await agent
+      .post('/api/cambios')
+      .send({ ventaId: v.id, devueltos: [{ ventaItemId: itemDe(v, remeraS), cantidad: 1 }], medioReintegro: 'EFECTIVO' })
+      .expect(201);
+    expect(r.body.cambios[0]).toMatchObject({ totalDevuelto: 13500, diferencia: -13500 });
+  });
+});

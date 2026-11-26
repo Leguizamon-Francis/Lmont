@@ -172,3 +172,12 @@ describe('caja del mes', () => {
     await agent.get('/api/caja/mes?mes=2026-13').expect(400);
   });
 });
+
+describe('fechas inválidas', () => {
+  it('se rechazan con un mensaje (no un error del servidor) y no se corren de día', async () => {
+    expect((await agent.get('/api/caja/dia?fecha=2026-13-01').expect(400)).body.error).toBe('Fecha inválida');
+    expect((await agent.get('/api/ventas?fecha=2026-02-31').expect(400)).body.error).toBe('Fecha inválida');
+    const r = await agent.post('/api/caja/movimientos').send({ tipo: 'GASTO', conceptoId: alquiler, monto: 100, fecha: '2026-02-31' }).expect(400);
+    expect(r.body.error).toBe('Fecha inválida');
+  });
+});

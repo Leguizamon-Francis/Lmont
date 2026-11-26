@@ -25,3 +25,10 @@ const fmtHora = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA_HORARIA, hour:
 
 /** Hora del local para un instante ISO: "14:35". */
 export const formatHora = (iso: string) => fmtHora.format(new Date(iso));
+
+/** "AAAA-MM-DD" de una fecha que existe (rechaza 2026-13-01 o 2026-02-31, que Date acepta corriéndolas de día). */
+export function esFechaValida(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hoy } from '../fechas.js';
+import { esFechaValida, hoy } from '../fechas.js';
 import { formatMonto, redondear } from '../money.js';
 import { cantidadSchema, idSchema, montoSchema, textoObligatorio } from './comunes.js';
 import type { ItemLista } from './catalogo.js';
@@ -21,7 +21,7 @@ const fechaOpcional = z.preprocess(
   vacioANull,
   z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
+    .refine(esFechaValida, 'Fecha inválida')
     .nullable(),
 );
 
@@ -173,13 +173,12 @@ export function aplicarPromos(items: ItemParaPromo[], aplicadas: PromoAplicada[]
             );
       const descuento = redondear(normal - conPromo);
       if (descuento <= 0) return { ok: false, error: `“${promo.nombre}” no hace descuento con estas prendas (sin la promo salen ${formatMonto(normal)})` };
-      // Reparto del descuento: proporcional al precio; la última unidad se lleva el redondeo.
-      let repartido = 0;
-      unidades.forEach((u, i) => {
-        const parte = i === unidades.length - 1 ? redondear(descuento - repartido) : redondear((descuento * u.precio) / normal);
-        repartido = redondear(repartido + parte);
-        descuentos.set(u.varianteId, redondear((descuentos.get(u.varianteId) ?? 0) + parte));
-      });
+      // Reparto del descuento: proporcional al precio. Los centavos del redondeo van a la unidad más
+      // cara, así ninguna queda con más descuento que su precio.
+      const partes = unidades.map((u) => redondear((descuento * u.precio) / normal));
+      const masCara = unidades.reduce((m, u, i) => (u.precio > unidades[m]!.precio ? i : m), 0);
+      partes[masCara] = redondear(partes[masCara]! + descuento - partes.reduce((s, x) => s + x, 0));
+      unidades.forEach((u, i) => descuentos.set(u.varianteId, redondear((descuentos.get(u.varianteId) ?? 0) + partes[i]!)));
       precioNormal += normal;
       precio += conPromo;
     }

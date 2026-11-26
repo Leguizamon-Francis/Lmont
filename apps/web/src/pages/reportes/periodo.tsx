@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router';
 import { MenuItem, Stack, TextField } from '@mui/material';
-import { formatFecha, hoy } from '@lmont/shared';
+import { esFechaValida, formatFecha, hoy } from '@lmont/shared';
 import { moverDia, moverMes } from '../../fechas';
 
 export type Periodo = { desde: string; hasta: string };
@@ -24,7 +24,7 @@ function atajos(): { id: string; texto: string; p: Periodo }[] {
   ];
 }
 
-const valida = (s: string | null) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const valida = (s: string | null) => !!s && esFechaValida(s);
 
 /** Período elegido (en la dirección, para que se pueda compartir el link). Por defecto, este mes. */
 export function usePeriodo(): [Periodo, (p: Periodo) => void] {

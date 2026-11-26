@@ -54,9 +54,12 @@ export const cambioSchema = z
   });
 export type CambioInput = z.input<typeof cambioSchema>;
 
-/** Valor de lo que vuelve, de lo que se lleva y la diferencia (positiva = paga el cliente). */
-export function calcularCambio(devueltos: { cantidad: number; precioUnitario: number }[], llevados: { cantidad: number; precioUnitario: number }[]) {
-  const totalDevuelto = subtotalVenta(devueltos);
+/**
+ * Valor de lo que vuelve (lo que pagó por esas prendas, ver reintegroItem), de lo que se lleva y la
+ * diferencia (positiva = paga el cliente).
+ */
+export function calcularCambio(devueltos: { importe: number }[], llevados: { cantidad: number; precioUnitario: number }[]) {
+  const totalDevuelto = redondear(devueltos.reduce((s, d) => s + d.importe, 0));
   const totalLlevado = subtotalVenta(llevados);
   return { totalDevuelto, totalLlevado, diferencia: redondear(totalLlevado - totalDevuelto) };
 }

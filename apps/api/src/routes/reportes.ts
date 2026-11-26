@@ -352,7 +352,10 @@ reportesRouter.get(
       prisma.cambio.findMany({
         where: { creadoEn: enRango(p) },
         select: {
-          devueltos: { select: { cantidad: true, precioUnitario: true, ventaItem: { select: { costoUnitario: true, venta: { select: { vendedorId: true } } } } } },
+          venta: { select: { vendedorId: true } },
+          devueltos: { select: { cantidad: true, precioUnitario: true, ventaItem: { select: { costoUnitario: true } } } },
+          llevados: { select: { cantidad: true, precioUnitario: true, costoUnitario: true } },
+          pagos: { select: { ajuste: true } },
         },
       }),
       prisma.vendedor.findMany({ select: { id: true, nombre: true } }),
@@ -402,6 +405,8 @@ reportesRouter.get(
       calor.set(clave, c);
 
       for (const pg of v.pagos) {
+        // Los descuentos del medio de pago (efectivo, transferencia) restan, como en el Resumen; los recargos no suman.
+        if (num(pg.ajuste) < 0) a.ganancia += num(pg.ajuste);
         const k = `${pg.medio}-${pg.cuotas}`;
         const m = porMedio.get(k) ?? { medio: pg.medio as MedioPago, cuotas: pg.cuotas, pagos: 0, cobrado: 0, ajuste: 0 };
         m.pagos += 1;
@@ -411,13 +416,16 @@ reportesRouter.get(
       }
     }
     for (const v of ventasAnt) acum(v.vendedorId).importeAnterior += totalesVenta(v.items).importe;
-    // Lo devuelto se le descuenta al vendedor que hizo la venta original.
+    // Los cambios y devoluciones se le cuentan al vendedor que hizo la venta original: resta lo que
+    // volvió y suma lo que se llevó a cambio (con su costo y el descuento del medio, si hubo).
     for (const c of cambios) {
+      const a = acum(c.venta.vendedorId);
       for (const x of c.devueltos) {
-        const a = acum(x.ventaItem.venta.vendedorId);
         a.devueltas += x.cantidad;
         a.ganancia -= x.cantidad * (num(x.precioUnitario) - num(x.ventaItem.costoUnitario));
       }
+      for (const l of c.llevados) a.ganancia += l.cantidad * (num(l.precioUnitario) - num(l.costoUnitario));
+      for (const pg of c.pagos) if (num(pg.ajuste) < 0) a.ganancia += num(pg.ajuste);
     }
 
     const ordenMedio: MedioPago[] = ['EFECTIVO', 'DEBITO', 'CREDITO', 'TRANSFERENCIA'];
@@ -950,13 +958,24 @@ reportesRouter.get(
         unidadesDevueltas += x.cantidad;
       }
       for (const pg of c.pagos) if (num(pg.cobrado) < 0) devuelto -= num(pg.cobrado);
-      // Mismo producto, otro talle: "lo cambió de M a L".
-      for (const x of c.devueltos) {
-        const dv = x.ventaItem.variante;
-        for (const l of c.llevados) {
-          if (l.variante.productoId !== dv.productoId || l.variante.talle.nombre === dv.talle.nombre) continue;
-          const k = `${dv.productoId}|${dv.talle.nombre}|${l.variante.talle.nombre}`;
-          const e = deTalle.get(k) ?? { productoId: dv.productoId, producto: `${dv.producto.tipo.nombre} ${dv.producto.nombre}`, de: dv.talle.nombre, a: l.variante.talle.nombre, veces: 0 };
+      // Mismo producto, otro talle: "lo cambió de M a L". Se empareja prenda por prenda: primero se
+      // descartan las que se llevaron en el mismo talle (cambio de color) y el resto se aparea en orden.
+      const unidades = (xs: { cantidad: number; v: V }[]) => xs.flatMap((x) => Array.from({ length: x.cantidad }, () => x.v));
+      const vuelven = unidades(c.devueltos.map((x) => ({ cantidad: x.cantidad, v: x.ventaItem.variante })));
+      const salen = unidades(c.llevados.map((l) => ({ cantidad: l.cantidad, v: l.variante })));
+      for (const productoId of new Set(vuelven.map((v) => v.productoId))) {
+        const de = vuelven.filter((v) => v.productoId === productoId).map((v) => v.talle.nombre);
+        const a = salen.filter((v) => v.productoId === productoId).map((v) => v.talle.nombre);
+        for (const t of [...de]) {
+          const i = a.indexOf(t);
+          if (i === -1) continue;
+          a.splice(i, 1);
+          de.splice(de.indexOf(t), 1);
+        }
+        const producto = vuelven.find((v) => v.productoId === productoId)!.producto;
+        for (let i = 0; i < Math.min(de.length, a.length); i++) {
+          const k = `${productoId}|${de[i]}|${a[i]}`;
+          const e = deTalle.get(k) ?? { productoId, producto: `${producto.tipo.nombre} ${producto.nombre}`, de: de[i]!, a: a[i]!, veces: 0 };
           e.veces += 1;
           deTalle.set(k, e);
         }

@@ -121,15 +121,21 @@ export function NuevaVenta() {
   const [pagaCon, setPagaCon] = useState('');
   const buscador = useRef<HTMLInputElement>(null);
 
+  // Unidades de cada prenda ya en la venta. Es una referencia (no el estado) para que dos lecturas
+  // seguidas del escáner vean la cantidad real aunque la pantalla todavía no se haya redibujado.
+  const enLaVenta = useRef(new Map<number, number>());
+  enLaVenta.current = new Map(b.items.map((it) => [it.varianteId, it.cantidad]));
+
   /** Suma una unidad de la prenda, sin pasarse del stock. Devuelve el aviso si no se pudo. */
   function agregar(v: Elegida): string | null {
     const nombre = `${v.producto.tipo.nombre} ${v.producto.nombre}`;
     const desc = `${nombre} ${v.color.nombre} ${v.talle.nombre}`;
     if (!v.activo || !v.producto.activo) return `${desc} está desactivado y no se puede vender.`;
-    const actual = b.items.find((it) => it.varianteId === v.id)?.cantidad ?? 0;
+    const actual = enLaVenta.current.get(v.id) ?? 0;
     if (actual + 1 > v.stock) {
       return v.stock === 0 ? `No hay stock de ${desc}.` : `No hay más stock de ${desc}: quedan ${v.stock} y ya están todas en la venta.`;
     }
+    enLaVenta.current.set(v.id, actual + 1);
     setHecho(null);
     setB((x) => {
       const i = x.items.findIndex((it) => it.varianteId === v.id);

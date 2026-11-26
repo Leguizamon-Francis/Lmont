@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   anularVentaSchema,
   aplicarPromos,
+  esFechaValida,
   formatMonto,
   hoy,
   idSchema,
@@ -26,7 +27,7 @@ export const ventasRouter = Router();
 const filtrosSchema = z.object({
   fecha: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
+    .refine(esFechaValida, 'Fecha inválida')
     .optional()
     .transform((v) => v ?? hoy()),
 });

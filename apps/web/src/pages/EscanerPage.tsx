@@ -27,7 +27,7 @@ export function EscanerPage() {
         api<EscaneoEnviado>('/escaner', { body: { codigo } }),
         buscarPorCodigo(codigo).catch(() => null),
       ]);
-      const llego = envio.pantallas > 0;
+      const llego = envio.entregado;
       lectura = {
         id: siguienteId++,
         codigo,
@@ -37,7 +37,7 @@ export function EscanerPage() {
           ? prenda
             ? 'Enviado a la notebook'
             : 'Enviado a la notebook (ese código no está cargado en ninguna prenda)'
-          : 'No llegó: no hay ninguna pantalla abierta en la notebook. Abrí Vender, Ingreso o Cambios.',
+          : 'No llegó: en la notebook no hay ninguna pantalla de L’Mont abierta y a la vista (Vender, Ingreso, Cambios o Productos).',
       };
     } catch (e) {
       lectura = { id: siguienteId++, codigo, prenda: null, ok: false, estado: mensajeDeError(e) };

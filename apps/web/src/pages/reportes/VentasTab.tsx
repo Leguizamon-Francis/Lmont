@@ -88,7 +88,7 @@ function Ventas({ data }: { data: ReporteVentas }) {
         ) : (
           <>
             <Ayuda>
-              Importe: lo vendido, sin descontar devoluciones. La ganancia sí descuenta lo que se devolvió de sus ventas. Las ventas sin vendedor elegido aparecen como “Sin vendedor”.
+              Importe: lo vendido, sin descontar devoluciones. La ganancia descuenta lo que se devolvió de sus ventas y los descuentos por medio de pago, como en el Resumen. Las ventas sin vendedor elegido aparecen como “Sin vendedor”.
             </Ayuda>
             <Tabla
               clave={(v) => v.vendedorId ?? 0}

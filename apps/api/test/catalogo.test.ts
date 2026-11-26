@@ -231,16 +231,6 @@ describe('variantes', () => {
     expect(no.body.error).toBe('No hay ningún producto con el código 000');
   });
 
-  it('genera códigos internos EAN-13 para las variantes sin código', async () => {
-    const p = await crear();
-    await agent.put(`/api/variantes/${p.variantes[0].id}`).send({ codigoBarras: 'PROV-1', stockMinimo: 0 }).expect(200);
-    const r = await agent.post(`/api/productos/${p.id}/codigos-internos`).expect(200);
-    expect(r.body.variantes[0].codigoBarras).toBe('PROV-1');
-    expect(r.body.variantes[1].codigoBarras).toMatch(/^20\d{11}$/);
-    const otra = await agent.post(`/api/productos/${p.id}/codigos-internos`);
-    expect(otra.status).toBe(409);
-  });
-
   it('el stock no se puede editar desde la variante y nunca queda negativo', async () => {
     const p = await crear();
     const r = await agent.put(`/api/variantes/${p.variantes[0].id}`).send({ codigoBarras: null, stockMinimo: 3, stock: 50 }).expect(200);

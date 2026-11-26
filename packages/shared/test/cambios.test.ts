@@ -3,12 +3,12 @@ import { calcularCambio, cambioSchema, errorPagosCambio } from '../src/index.js'
 
 describe('cambios', () => {
   it('calcula lo que vuelve, lo que se lleva y la diferencia', () => {
-    expect(calcularCambio([{ cantidad: 2, precioUnitario: 15000 }], [{ cantidad: 1, precioUnitario: 40000 }])).toEqual({
+    expect(calcularCambio([{ importe: 30000 }], [{ cantidad: 1, precioUnitario: 40000 }])).toEqual({
       totalDevuelto: 30000,
       totalLlevado: 40000,
       diferencia: 10000,
     });
-    expect(calcularCambio([{ cantidad: 1, precioUnitario: 15000.5 }], []).diferencia).toBe(-15000.5);
+    expect(calcularCambio([{ importe: 15000.5 }], []).diferencia).toBe(-15000.5);
   });
 
   it('exige que la plata cierre con la diferencia', () => {

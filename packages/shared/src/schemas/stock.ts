@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hoy } from '../fechas.js';
+import { esFechaValida, hoy } from '../fechas.js';
 import { cantidadSchema, idSchema, montoSchema, textoObligatorio, textoOpcional } from './comunes.js';
 import type { ItemLista, VarianteEncontrada } from './catalogo.js';
 
@@ -54,7 +54,7 @@ export const fechaPasadaSchema = z
   .nullable()
   .transform((v, ctx) => {
     if (!v) return hoy();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) {
+    if (!esFechaValida(v)) {
       ctx.addIssue({ code: 'custom', message: 'Fecha inválida' });
       return z.NEVER;
     }
@@ -74,7 +74,6 @@ export const ingresoItemSchema = z.object({
   cantidad: cantidadSchema(1),
   costoUnitario: montoSchema,
 });
-export type IngresoItemInput = z.input<typeof ingresoItemSchema>;
 
 export const ingresoSchema = z
   .object({

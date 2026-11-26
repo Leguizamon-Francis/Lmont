@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hoy } from '../fechas.js';
+import { esFechaValida, hoy } from '../fechas.js';
 import type { MedioPago } from './ventas.js';
 import type { MotivoCambio } from './cambios.js';
 
@@ -22,7 +22,7 @@ import type { MotivoCambio } from './cambios.js';
 
 const fechaSchema = z
   .string()
-  .refine((s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Fecha inválida');
+  .refine(esFechaValida, 'Fecha inválida');
 
 /** Máximo de días de un período (unos 3 años). */
 export const MAX_DIAS_PERIODO = 1100;

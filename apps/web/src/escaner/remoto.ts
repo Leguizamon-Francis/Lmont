@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import type { EscaneoRecibido } from '@lmont/shared';
+import { api } from '../api/client';
 
 /**
  * Códigos que llegan desde el celular (pantalla Escáner) a la pantalla abierta en la notebook.
@@ -20,13 +22,17 @@ function conectar() {
   if (fuente || !receptores.length) return;
   const f = new EventSource('/api/escaner/eventos');
   fuente = f;
-  f.onmessage = (e: MessageEvent<string>) => {
-    if (document.visibilityState !== 'visible') return;
+  f.onmessage = async (e: MessageEvent<string>) => {
+    // Solo la pestaña que está a la vista lo toma, y solo si es la primera en confirmarlo.
+    const receptor = receptores.at(-1);
+    if (document.visibilityState !== 'visible' || !receptor) return;
     try {
-      const { codigo } = JSON.parse(e.data) as { codigo?: unknown };
-      if (typeof codigo === 'string') receptores.at(-1)?.current(codigo);
+      const { codigo, id } = JSON.parse(e.data) as { codigo?: unknown; id?: unknown };
+      if (typeof codigo !== 'string' || typeof id !== 'string') return;
+      const r = await api<EscaneoRecibido>('/escaner/recibido', { body: { id } });
+      if (r.usar) receptor.current(codigo);
     } catch {
-      // mensaje inválido: se ignora
+      // mensaje inválido o sin conexión: se ignora
     }
   };
   // Si se cortó del todo (por ejemplo, el servidor se reinició), se vuelve a intentar.

@@ -5,6 +5,7 @@ import {
   CONCEPTO_CAMBIO_REINTEGRO,
   CONCEPTO_MERCADERIA,
   conceptoCajaSchema,
+  esFechaValida,
   formatMonto,
   hoy,
   idSchema,
@@ -143,7 +144,7 @@ async function leerCaja(desde: string, hasta: string) {
       const cobros = v.pagos.map((p) => ({ medio: p.medio, cobrado: num(p.cobrado) }));
       // El medio principal (el de más plata); si pagó con varios, el detalle los lista.
       const principal = [...cobros].sort((a, b) => b.cobrado - a.cobrado)[0];
-      const varios = cobros.length > 1 ? cobros.map((p) => `${MEDIOS_PAGO[p.medio]} ${formatMonto(p.cobrado)}`).join() : null;
+      const varios = cobros.length > 1 ? cobros.map((p) => `${MEDIOS_PAGO[p.medio]} ${formatMonto(p.cobrado)}`).join(' + ') : null;
       return {
         clave: `v-${v.id}`,
         id: v.id,
@@ -197,7 +198,7 @@ function siguienteDia(iso: string) {
 const fechaSchema = z.object({
   fecha: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
+    .refine(esFechaValida, 'Fecha inválida')
     .optional()
     .transform((v) => v ?? hoy()),
 });

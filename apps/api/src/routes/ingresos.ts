@@ -117,7 +117,8 @@ ingresosRouter.post(
         },
         select: { id: true },
       });
-      for (const it of d.items) {
+      // En orden de id, como las ventas y los cambios: si se cruzan dos operaciones, no se traban entre sí.
+      for (const it of [...d.items].sort((a, b) => a.varianteId - b.varianteId)) {
         await moverStock(tx, it.varianteId, it.cantidad, 'INGRESO', { ingresoId: ingreso.id });
       }
 

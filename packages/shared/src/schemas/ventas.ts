@@ -49,11 +49,9 @@ export const planPagoSchema = z.object({
   porcentaje: porcentajeSchema,
   activo: z.boolean().default(true),
 });
-export type PlanPagoInput = z.input<typeof planPagoSchema>;
 
 /** Nuevo plan de cuotas con tarjeta de crédito (los demás medios tienen un único plan). */
 export const nuevoPlanCuotasSchema = planPagoSchema.extend({ cuotas: cuotasSchema });
-export type NuevoPlanCuotasInput = z.input<typeof nuevoPlanCuotasSchema>;
 
 export type PlanPago = { id: number; medio: MedioPago; cuotas: number; porcentaje: number; activo: boolean };
 
@@ -86,7 +84,6 @@ export const ventaItemSchema = z.object({
   /** Precio por unidad que se cobra (normalmente el precio de venta del producto). */
   precioUnitario: montoSchema,
 });
-export type VentaItemInput = z.input<typeof ventaItemSchema>;
 
 /** Cuotas que se pueden elegir al cobrar con tarjeta de crédito. */
 export const CUOTAS_CREDITO = [1, 2, 3, 4, 5, 6, 9, 12, 18, 24] as const;
@@ -108,7 +105,6 @@ export const ventaPagoSchema = z
     if (p.medio !== 'CREDITO') ctx.addIssue({ code: 'custom', path: ['porcentaje'], message: 'Solo el pago con crédito lleva recargo' });
     else if (p.porcentaje < 0) ctx.addIssue({ code: 'custom', path: ['porcentaje'], message: 'El recargo no puede ser negativo' });
   });
-export type VentaPagoInput = z.input<typeof ventaPagoSchema>;
 
 /** Total de los productos de una venta (cantidad × precio cobrado). */
 export const subtotalVenta = (items: { cantidad: number; precioUnitario: number }[]) =>
@@ -163,7 +159,6 @@ export const ventaSchema = z
 export type VentaInput = z.input<typeof ventaSchema>;
 
 export const anularVentaSchema = z.object({ motivo: textoObligatorio('el motivo', 200) });
-export type AnularVentaInput = z.input<typeof anularVentaSchema>;
 
 // ---------------------------------------------------------------------------
 // Respuestas de la API
@@ -208,8 +203,10 @@ export type VentaDetalle = Omit<VentaResumen, 'pagos'> & {
     precioUnitario: number;
     /** Descuento de promociones que le tocó a este ítem (total). */
     descuentoPromo: number;
-    /** Lo que se pagó por unidad después de las promociones (lo que se reintegra si la devuelve). */
+    /** Lo que se pagó por unidad, con la promo y el descuento del medio de pago. */
     precioEfectivo: number;
+    /** Lo que se pagó por el ítem completo (de acá sale el reintegro si lo devuelve). */
+    pagado: number;
     variante: VarianteEncontrada;
     /** Unidades que el cliente ya devolvió (en cambios o devoluciones). */
     devueltas: number;
@@ -229,6 +226,30 @@ export type TotalesVentas = {
 
 export type ListaVentas = { fecha: string; ventas: VentaResumen[]; totales: TotalesVentas };
 
-/** Precio por unidad después del descuento de promociones (lo que se reintegra si se devuelve). */
-export const precioEfectivo = (it: { cantidad: number; precioUnitario: number; descuentoPromo: number }) =>
-  redondear((it.cantidad * it.precioUnitario - it.descuentoPromo) / it.cantidad);
+type ItemCobrado = { cantidad: number; precioUnitario: number; descuentoPromo: number };
+
+/**
+ * Qué parte de lo vendido se cobró después de los descuentos por medio de pago (efectivo, transferencia).
+ * 1 = sin descuento. Los recargos de la tarjeta no cuentan: no se reintegran.
+ */
+export function factorDescuentoMedios(items: ItemCobrado[], pagos: { ajuste: number }[]) {
+  const subtotal = items.reduce((s, it) => s + it.cantidad * it.precioUnitario - it.descuentoPromo, 0);
+  const descuento = pagos.reduce((s, p) => s + Math.min(0, p.ajuste), 0);
+  return subtotal > 0 ? (subtotal + descuento) / subtotal : 1;
+}
+
+/** Lo que el cliente pagó por un ítem: con la promo y con el descuento del medio de pago. */
+export const pagadoItem = (it: ItemCobrado, factor = 1) => redondear((it.cantidad * it.precioUnitario - it.descuentoPromo) * factor);
+
+/** Lo que pagó por unidad (para mostrar). */
+export const precioEfectivo = (it: ItemCobrado, factor = 1) => redondear(pagadoItem(it, factor) / it.cantidad);
+
+/**
+ * Plata a devolver por `vuelven` unidades de un ítem del que ya volvieron `yaDevueltas`.
+ * Reparte lo pagado de forma que, sumando todas las devoluciones, nunca se devuelva más de lo cobrado
+ * (con 3 a $ 666,67 se devuelven $ 2.000, no $ 2.000,01).
+ */
+export function reintegroItem(pagado: number, cantidad: number, yaDevueltas: number, vuelven: number) {
+  const hasta = (k: number) => redondear((pagado * k) / cantidad);
+  return redondear(hasta(yaDevueltas + vuelven) - hasta(yaDevueltas));
+}

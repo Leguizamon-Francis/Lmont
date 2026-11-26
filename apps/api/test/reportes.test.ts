@@ -407,3 +407,28 @@ describe('reporte de cambios y devoluciones', () => {
     expect(r.cambiosDeTalle).toEqual([{ productoId: remera, producto: 'Remera Básica', de: 'M', a: 'L', veces: 1 }]);
   });
 });
+
+describe('correcciones del reporte', () => {
+  it('los cambios de talle se cuentan prenda por prenda', async () => {
+    await agent.post('/api/ingresos').send({ items: [{ varianteId: negroL, cantidad: 3, costoUnitario: 8000 }] }).expect(201);
+    const v = await vender(negro, 2);
+    // Devuelve 2 negras M y se lleva 2 negras L: son 2 cambios de M a L (no 4).
+    await agent
+      .post('/api/cambios')
+      .send({ ventaId: v.id, motivo: 'TALLE', devueltos: [{ ventaItemId: itemDe(v, negro), cantidad: 2 }], llevados: [{ varianteId: negroL, cantidad: 2, precioUnitario: 15000 }] })
+      .expect(201);
+    const r = (await agent.get('/api/reportes/cambios').expect(200)).body;
+    expect(r.cambiosDeTalle).toEqual([{ productoId: remera, producto: 'Remera Básica', de: 'M', a: 'L', veces: 2 }]);
+  });
+
+  it('la ganancia del vendedor descuenta el descuento del medio de pago, igual que el resumen', async () => {
+    await prisma.planPago.updateMany({ where: { medio: 'EFECTIVO' }, data: { porcentaje: -10 } });
+    const ana = (await agent.post('/api/vendedores').send({ nombre: 'Ana' }).expect(201)).body.id;
+    // 15.000 con 10 % en efectivo = 13.500; costo 8.000.
+    await agent.post('/api/ventas').send({ vendedorId: ana, items: [{ varianteId: negro, cantidad: 1, precioUnitario: 15000 }], pagos: [{ medio: 'EFECTIVO', monto: 15000 }] }).expect(201);
+    const ventas = (await agent.get('/api/reportes/ventas').expect(200)).body;
+    const resumen = (await agent.get('/api/reportes/resumen').expect(200)).body;
+    expect(ventas.porVendedor[0].ganancia).toBe(5500);
+    expect(resumen.resultado.gananciaBruta).toBe(5500);
+  });
+});
