@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import {
-  codigoInterno,
   idSchema,
   nuevasVariantesSchema,
   nuevoProductoSchema,
@@ -160,24 +159,6 @@ productosRouter.post(
   }),
 );
 
-/** Asigna un código interno a todas las variantes del producto que no tienen código. */
-productosRouter.post(
-  '/:id/codigos-internos',
-  handler(async (req, res) => {
-    const id = validar(idSchema, req.params.id);
-    const detalle = await prisma.$transaction(async (tx) => {
-      await existeProducto(tx, id);
-      const sinCodigo = await tx.variante.findMany({ where: { productoId: id, codigoBarras: null }, select: { id: true } });
-      if (sinCodigo.length === 0) throw new HttpError(409, 'Todas las variantes ya tienen código de barras');
-      for (const v of sinCodigo) {
-        await asignarCodigoInterno(tx, v.id);
-      }
-      return buscarDetalle(tx, id);
-    });
-    res.json(detalle);
-  }),
-);
-
 // ---------------------------------------------------------------------------
 
 async function buscarDetalle(db: Tx, id: number) {
@@ -258,14 +239,4 @@ async function crearVariantes(
     }
   }
   return count;
-}
-
-export async function asignarCodigoInterno(db: Tx, varianteId: number) {
-  const codigo = codigoInterno(varianteId);
-  const ocupado = await db.variante.findUnique({ where: { codigoBarras: codigo }, select: { id: true } });
-  if (ocupado && ocupado.id !== varianteId) {
-    throw new HttpError(409, `El código ${codigo} ya está cargado en otra variante. Cargá el código a mano.`);
-  }
-  await db.variante.update({ where: { id: varianteId }, data: { codigoBarras: codigo } });
-  return codigo;
 }

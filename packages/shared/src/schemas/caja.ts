@@ -18,7 +18,6 @@ export const conceptoCajaSchema = z.object({
   /** Solo gastos: si resta en la ganancia de Reportes (un retiro del dueño no). */
   cuentaEnGanancia: z.boolean().default(true),
 });
-export type ConceptoCajaInput = z.input<typeof conceptoCajaSchema>;
 export type ConceptoCaja = { id: number; nombre: string; tipo: TipoCaja; activo: boolean; cuentaEnGanancia: boolean };
 
 // ---------------------------------------------------------------------------

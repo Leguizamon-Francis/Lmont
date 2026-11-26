@@ -1,28 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  codigoInterno,
-  digitoVerificadorEan13,
   nuevasVariantesSchema,
   nuevoProductoSchema,
   productoSchema,
   varianteSchema,
 } from '../src/index.js';
-
-describe('códigos de barras internos', () => {
-  it('calcula el dígito verificador EAN-13', () => {
-    expect(digitoVerificadorEan13('400638133393')).toBe(1); // 4006381333931
-    expect(digitoVerificadorEan13('590123412345')).toBe(7); // 5901234123457
-  });
-
-  it('genera códigos de 13 dígitos con prefijo 20 y distintos por variante', () => {
-    const a = codigoInterno(1);
-    const b = codigoInterno(1234);
-    expect(a).toMatch(/^20\d{11}$/);
-    expect(a).toBe('2000000000015');
-    expect(b).not.toBe(a);
-    expect(Number(b[12])).toBe(digitoVerificadorEan13(b.slice(0, 12)));
-  });
-});
 
 describe('productoSchema', () => {
   const base = { tipoId: 1, nombre: ' Chino ', precioCompra: '15.000', precioVenta: '32.500,50' };

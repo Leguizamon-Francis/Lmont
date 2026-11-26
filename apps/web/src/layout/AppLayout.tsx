@@ -3,7 +3,6 @@ import { Link as RouterLink, Navigate, Outlet, useLocation } from 'react-router'
 import {
   AppBar,
   Box,
-  Chip,
   CircularProgress,
   Divider,
   Drawer,
@@ -62,7 +61,6 @@ export function AppLayout() {
             key={item.ruta}
             component={RouterLink}
             to={item.ruta}
-            disabled={!item.disponible}
             selected={actual?.ruta === item.ruta}
             onClick={() => setAbierto(false)}
             sx={{
@@ -71,14 +69,10 @@ export function AppLayout() {
               minHeight: 48,
               '&.Mui-selected': { bgcolor: 'rgba(255,255,255,0.14)' },
               '&.Mui-selected:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
-              '&.Mui-disabled': { opacity: 0.55 },
             }}
           >
             <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>{item.icono}</ListItemIcon>
             <ListItemText primary={item.texto} />
-            {!item.disponible && (
-              <Chip label="Pronto" size="small" sx={{ color: 'inherit', bgcolor: 'rgba(255,255,255,0.12)', height: 20, fontSize: 11 }} />
-            )}
           </ListItemButton>
         ))}
       </List>

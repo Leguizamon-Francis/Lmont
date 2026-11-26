@@ -11,19 +11,19 @@ import PeopleIcon from '@mui/icons-material/PeopleOutlined';
 import BarChartIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsIcon from '@mui/icons-material/SettingsOutlined';
 
-export type ItemMenu = { texto: string; ruta: string; icono: ReactNode; disponible: boolean };
+export type ItemMenu = { texto: string; ruta: string; icono: ReactNode };
 
-/** Secciones del sistema. Las que no están disponibles se habilitan en etapas siguientes. */
+/** Secciones del sistema, en el orden del menú. */
 export const MENU: ItemMenu[] = [
-  { texto: 'Inicio', ruta: '/', icono: <HomeIcon />, disponible: true },
-  { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon />, disponible: true },
-  { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon />, disponible: true },
-  { texto: 'Escáner', ruta: '/escaner', icono: <QrCodeScannerIcon />, disponible: true },
-  { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon />, disponible: true },
-  { texto: 'Stock', ruta: '/stock', icono: <InventoryIcon />, disponible: true },
-  { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon />, disponible: true },
-  { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon />, disponible: true },
-  { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon />, disponible: true },
-  { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon />, disponible: true },
-  { texto: 'Configuración', ruta: '/configuracion', icono: <SettingsIcon />, disponible: true },
+  { texto: 'Inicio', ruta: '/', icono: <HomeIcon /> },
+  { texto: 'Vender', ruta: '/ventas', icono: <PointOfSaleIcon /> },
+  { texto: 'Cambios y devoluciones', ruta: '/cambios', icono: <SwapHorizIcon /> },
+  { texto: 'Escáner', ruta: '/escaner', icono: <QrCodeScannerIcon /> },
+  { texto: 'Productos', ruta: '/productos', icono: <CheckroomIcon /> },
+  { texto: 'Stock', ruta: '/stock', icono: <InventoryIcon /> },
+  { texto: 'Promociones', ruta: '/promociones', icono: <LocalOfferIcon /> },
+  { texto: 'Caja', ruta: '/caja', icono: <AccountBalanceWalletIcon /> },
+  { texto: 'Clientes', ruta: '/clientes', icono: <PeopleIcon /> },
+  { texto: 'Reportes', ruta: '/reportes', icono: <BarChartIcon /> },
+  { texto: 'Configuración', ruta: '/configuracion', icono: <SettingsIcon /> },
 ];

@@ -37,22 +37,6 @@ export const codigoBarrasSchema = z
   .nullable()
   .transform((v) => (v ? v : null));
 
-/** Dígito verificador EAN-13 para los primeros 12 dígitos. */
-export function digitoVerificadorEan13(doce: string): number {
-  let suma = 0;
-  for (let i = 0; i < 12; i++) suma += Number(doce[i]) * (i % 2 === 0 ? 1 : 3);
-  return (10 - (suma % 10)) % 10;
-}
-
-/**
- * Código EAN-13 interno para una variante que no trae código del proveedor.
- * Usa el prefijo 20 (reservado para uso interno de cada comercio) + el id de la variante.
- */
-export function codigoInterno(varianteId: number): string {
-  const doce = '20' + String(varianteId).padStart(10, '0');
-  return doce + digitoVerificadorEan13(doce);
-}
-
 // ---------------------------------------------------------------------------
 // Productos y variantes
 // ---------------------------------------------------------------------------
@@ -105,8 +89,6 @@ export const productoSchema = z.object({
   observaciones: textoOpcional(1000),
   activo: z.boolean().default(true),
 });
-export type ProductoInput = z.input<typeof productoSchema>;
-export type ProductoData = z.output<typeof productoSchema>;
 
 /** Alta de producto: datos + colores, talles y unidades para crear las variantes de una vez (opcional). */
 export const nuevoProductoSchema = productoSchema

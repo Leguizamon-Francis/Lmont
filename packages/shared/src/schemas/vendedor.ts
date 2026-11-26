@@ -6,6 +6,5 @@ export const vendedorSchema = z.object({
   activo: z.boolean().default(true),
 });
 export type VendedorInput = z.input<typeof vendedorSchema>;
-export type VendedorData = z.output<typeof vendedorSchema>;
 
 export type Vendedor = { id: number; nombre: string; activo: boolean };

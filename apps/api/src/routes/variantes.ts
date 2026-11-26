@@ -4,7 +4,6 @@ import { bloquearVariante, moverStock } from '../catalogo/stock.js';
 import { prisma } from '../db.js';
 import { handler, HttpError, noEncontrado, validar } from '../http/errors.js';
 import { selectEncontrada, selectVariante, variante, varianteEncontrada } from '../catalogo/serializar.js';
-import { asignarCodigoInterno } from './productos.js';
 
 export const variantesRouter = Router();
 
@@ -83,22 +82,6 @@ variantesRouter.post(
       }
       const detalle = MOTIVOS_AJUSTE[motivo].replace(/ \(.*\)$/, '') + (nota ? `: ${nota}` : '');
       await moverStock(tx, id, stockReal - actual, 'AJUSTE', { detalle });
-      return tx.variante.findUniqueOrThrow({ where: { id }, select: selectVariante });
-    });
-    res.json(variante(v));
-  }),
-);
-
-/** Genera un código interno para una variante sin código (para imprimir etiquetas propias). */
-variantesRouter.post(
-  '/:id/codigo-interno',
-  handler(async (req, res) => {
-    const id = validar(idSchema, req.params.id);
-    const v = await prisma.$transaction(async (tx) => {
-      const actual = await tx.variante.findUnique({ where: { id }, select: { codigoBarras: true } });
-      if (!actual) throw noEncontrado('la variante');
-      if (actual.codigoBarras) throw new HttpError(409, 'Esta variante ya tiene código de barras');
-      await asignarCodigoInterno(tx, id);
       return tx.variante.findUniqueOrThrow({ where: { id }, select: selectVariante });
     });
     res.json(variante(v));
