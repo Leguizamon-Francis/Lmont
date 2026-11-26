@@ -35,11 +35,23 @@ function celda(ref: string, valor: Celda, estilo: number) {
   return `<c r="${ref}" t="inlineStr"${estilo === 1 ? ' s="1"' : ''}><is><t xml:space="preserve">${xml(String(valor))}</t></is></c>`;
 }
 
+/** Cuántos caracteres ocupa la celda ya formateada ("$ 6.566.100,00", no "6566100"), para el ancho de la columna. */
+function largoVisible(valor: Celda, tipo: TipoColumna): number {
+  if (valor !== null && typeof valor === 'object') return largoVisible(valor.valor, valor.tipo);
+  if (typeof valor !== 'number') return String(valor ?? '').length;
+  const n = (decimales: number) => valor.toLocaleString('es-AR', { minimumFractionDigits: decimales, maximumFractionDigits: decimales }).length;
+  if (tipo === 'moneda') return n(2) + 2;
+  if (tipo === 'decimal') return n(2);
+  if (tipo === 'porcentaje') return n(1) + 2;
+  return n(0);
+}
+
 function hojaXml(h: Hoja) {
   const cols = h.columnas
     .map((c, i) => {
-      const largo = Math.max(c.titulo.length, ...h.filas.slice(0, 200).map((f) => String((f[i] as { valor?: number } | null)?.valor ?? f[i] ?? '').length));
-      const ancho = c.ancho ?? Math.min(60, Math.max(8, largo + 2));
+      const largo = Math.max(c.titulo.length, ...h.filas.slice(0, 500).map((f) => largoVisible(f[i], c.tipo ?? 'texto')));
+      // Un poco de aire: Excel mide en caracteres de la fuente por defecto y los números en negrita o con $ ocupan más.
+      const ancho = c.ancho ?? Math.min(60, Math.max(8, Math.ceil(largo * 1.1) + 3));
       return `<col min="${i + 1}" max="${i + 1}" width="${ancho}" customWidth="1"/>`;
     })
     .join('');
