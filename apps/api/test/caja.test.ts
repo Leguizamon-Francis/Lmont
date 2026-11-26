@@ -79,11 +79,17 @@ describe('caja del día', () => {
       ventas: 45000,
       otrosIngresos: 5000,
       gastos: 28000,
+      cambios: 0,
       saldo: 22000,
       // 30.000 ventas en efectivo + 5.000 de cambio − 8.000 de mercadería (el alquiler fue por transferencia).
       efectivo: 27000,
     });
-    expect(r.movimientos.map((m: { concepto: string; origen: string; detalle: string | null }) => [m.concepto, m.origen, m.detalle])).toEqual([
+    // Las ventas (sin la anulada) también aparecen en la lista, en orden.
+    type Renglon = { concepto: string; origen: string; detalle: string | null; monto: number; momento: string };
+    const lista: Renglon[] = r.movimientos;
+    expect(lista.map((m) => m.momento)).toEqual(lista.map((m) => m.momento).sort());
+    expect(lista.filter((m) => m.origen === 'VENTA').map((m) => m.monto).sort((a, b) => a - b)).toEqual([15000, 30000]);
+    expect(lista.filter((m) => m.origen !== 'VENTA').map((m) => [m.concepto, m.origen, m.detalle])).toEqual([
       ['Cambio inicial', 'MANUAL', null],
       ['Alquiler', 'MANUAL', 'Noviembre'],
       ['Compra de mercadería', 'MERCADERIA', 'Textil Sur'],
@@ -147,7 +153,7 @@ describe('caja del mes', () => {
     await agent.post('/api/caja/movimientos').send({ tipo: 'GASTO', conceptoId: alquiler, monto: 99999, fecha: '2025-12-31' }).expect(201);
 
     const r = (await agent.get(`/api/caja/mes?mes=${MES}`).expect(200)).body;
-    expect(r.totales).toEqual({ ventas: 45000, otrosIngresos: 0, gastos: 41000, saldo: 4000, efectivo: 30000 - 41000 });
+    expect(r.totales).toEqual({ ventas: 45000, otrosIngresos: 0, gastos: 41000, cambios: 0, saldo: 4000, efectivo: 30000 - 41000 });
     expect(r.ventasPorMedio).toEqual([
       { medio: 'EFECTIVO', total: 30000 },
       { medio: 'CREDITO', total: 15000 },

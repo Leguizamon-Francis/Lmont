@@ -105,7 +105,8 @@ describe('cambios y devoluciones', () => {
     expect(await stockDe(remeraS)).toBe(4);
 
     const caja = (await agent.get('/api/caja/dia').expect(200)).body;
-    expect(caja.totales).toMatchObject({ ventas: 30000, gastos: 15000, saldo: 15000, efectivo: 15000 });
+    // La devolución va en su propio renglón, no en gastos.
+    expect(caja.totales).toMatchObject({ ventas: 30000, gastos: 0, cambios: -15000, saldo: 15000, efectivo: 15000 });
     expect(caja.movimientos).toContainEqual(
       expect.objectContaining({ origen: 'CAMBIO', tipo: 'GASTO', monto: 15000, id: v.id, concepto: 'Devolución de dinero a un cliente' }),
     );
@@ -129,7 +130,7 @@ describe('cambios y devoluciones', () => {
     expect(await stockDe(blancoS)).toBe(2);
 
     const caja = (await agent.get('/api/caja/dia').expect(200)).body;
-    expect(caja.totales).toMatchObject({ ventas: 15000, otrosIngresos: 27500, saldo: 42500 });
+    expect(caja.totales).toMatchObject({ ventas: 15000, otrosIngresos: 0, cambios: 27500, saldo: 42500 });
   });
 
   it('si lo que se lleva vale menos, exige elegir cómo devolver la diferencia', async () => {

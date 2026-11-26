@@ -21,6 +21,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import {
   formatFecha,
+  formatHora,
   formatMes,
   formatMonto,
   hoy,
@@ -57,7 +58,10 @@ export function CajaPage() {
 
 // ---------------------------------------------------------------------------
 
-/** Resumen: ventas + otros ingresos − gastos = saldo, y el efectivo. */
+/** "+ $ 1.000" / "− $ 1.000" para montos que pueden ser positivos o negativos. */
+const conSigno = (n: number) => (n < 0 ? `− ${formatMonto(-n)}` : n > 0 ? `+ ${formatMonto(n)}` : formatMonto(0));
+
+/** Resumen: ventas + otros ingresos − gastos ± cambios = saldo. */
 function Resumen({ t, titulo, cantidadVentas }: { t: TotalesCaja; titulo: string; cantidadVentas?: number }) {
   return (
     <Paper sx={{ p: 2.5 }}>
@@ -69,8 +73,9 @@ function Resumen({ t, titulo, cantidadVentas }: { t: TotalesCaja; titulo: string
         <Fila texto={cantidadVentas === undefined ? 'Ventas' : `Ventas (${cantidadVentas})`} valor={formatMonto(t.ventas)} />
         <Fila texto="Otros ingresos" valor={formatMonto(t.otrosIngresos)} />
         <Fila texto="Gastos" valor={t.gastos ? `− ${formatMonto(t.gastos)}` : formatMonto(0)} color={t.gastos ? 'error' : undefined} />
+        <Fila texto="Cambios y devoluciones" valor={conSigno(t.cambios)} color={t.cambios < 0 ? 'error' : undefined} />
         <Divider sx={{ my: 0.5 }} />
-        <Fila texto="Total" valor={formatMonto(t.efectivo)} fuerte />
+        <Fila texto="Total" valor={formatMonto(t.saldo)} fuerte />
       </Stack>
     </Paper>
   );
@@ -143,21 +148,22 @@ function CajaDelDia() {
           </Stack>
 
           <Paper>
-            <Typography sx={{ px: 2, py: 1.5, fontWeight: 600, bgcolor: 'action.hover' }}>Ingresos y gastos</Typography>
+            <Typography sx={{ px: 2, py: 1.5, fontWeight: 600, bgcolor: 'action.hover' }}>Movimientos del día</Typography>
             {data.movimientos.length === 0 ? (
               <Typography color="text.secondary" sx={{ p: 2 }}>
-                No se cargaron ingresos ni gastos este día. Las ventas ya están sumadas arriba.
+                No hubo ventas ni movimientos este día.
               </Typography>
             ) : (
               <List disablePadding>
-                {data.movimientos.map((m) => (
+                {/* Lo último que pasó, arriba. */}
+                {[...data.movimientos].sort((a, b) => b.momento.localeCompare(a.momento)).map((m) => (
                   <ListItemButton
                     key={m.clave}
                     divider
                     onClick={() =>
                       m.origen === 'MERCADERIA'
                         ? navigate(`/stock/ingresos/${m.id}`)
-                        : m.origen === 'CAMBIO'
+                        : m.origen === 'CAMBIO' || m.origen === 'VENTA'
                           ? navigate(`/ventas/${m.id}`)
                           : setCargando({ tipo: m.tipo, movimiento: m })
                     }
@@ -166,10 +172,18 @@ function CajaDelDia() {
                       primary={
                         <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                           {m.concepto}
-                          {m.origen !== 'MANUAL' && <Chip label="Automático" size="small" variant="outlined" />}
+                          {(m.origen === 'MERCADERIA' || m.origen === 'CAMBIO') && <Chip label="Automático" size="small" variant="outlined" />}
                         </Box>
                       }
-                      secondary={[m.detalle, MEDIOS_PAGO[m.medio], m.vendedor?.nombre].filter(Boolean).join(' · ')}
+                      secondary={[
+                        m.origen === 'VENTA' || m.origen === 'CAMBIO' ? formatHora(m.momento) : null,
+                        m.detalle,
+                        // Una venta con varios medios ya los lista en el detalle.
+                        m.origen === 'VENTA' && m.detalle?.includes(' + ') ? null : MEDIOS_PAGO[m.medio],
+                        m.vendedor?.nombre,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     />
                     <Typography sx={{ fontWeight: 600, ml: 2, whiteSpace: 'nowrap' }} color={m.tipo === 'GASTO' ? 'error' : 'success.main'}>
                       {m.tipo === 'GASTO' ? '− ' : '+ '}
@@ -180,9 +194,6 @@ function CajaDelDia() {
               </List>
             )}
           </Paper>
-          <Typography variant="body2" color="text.secondary">
-            La mercadería que se marca como “pagada con la caja” al ingresarla y la plata de los cambios y devoluciones aparecen solas.
-          </Typography>
         </Stack>
       )}
 
@@ -275,7 +286,7 @@ function CajaDelMes() {
                   <ListItemButton key={d.fecha} divider onClick={() => navigate(`/caja?fecha=${d.fecha}`)}>
                     <ListItemText
                       primary={formatFecha(d.fecha)}
-                      secondary={`Ventas ${formatMonto(d.ventas)}${d.otrosIngresos ? ` · ingresos ${formatMonto(d.otrosIngresos)}` : ''}${d.gastos ? ` · gastos ${formatMonto(d.gastos)}` : ''}`}
+                      secondary={`Ventas ${formatMonto(d.ventas)}${d.otrosIngresos ? ` · ingresos ${formatMonto(d.otrosIngresos)}` : ''}${d.gastos ? ` · gastos ${formatMonto(d.gastos)}` : ''}${d.cambios ? ` · cambios ${conSigno(d.cambios)}` : ''}`}
                     />
                     <Typography sx={{ fontWeight: 600, ml: 2, whiteSpace: 'nowrap' }} color={d.saldo < 0 ? 'error' : undefined}>
                       {formatMonto(d.saldo)}

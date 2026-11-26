@@ -5,8 +5,10 @@ import {
   CONCEPTO_CAMBIO_REINTEGRO,
   CONCEPTO_MERCADERIA,
   conceptoCajaSchema,
+  formatMonto,
   hoy,
   idSchema,
+  MEDIOS_PAGO,
   mesSchema,
   movimientoCajaSchema,
   rangoDelDia,
@@ -31,7 +33,7 @@ const aDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const ORDEN_MEDIOS: MedioPago[] = ['EFECTIVO', 'DEBITO', 'CREDITO', 'TRANSFERENCIA'];
 
 // ---------------------------------------------------------------------------
-// Lectura: junta ventas, compras de mercadería pagadas con la caja y movimientos manuales
+// Lectura: junta ventas, cambios, compras de mercadería pagadas con la caja y movimientos manuales
 // ---------------------------------------------------------------------------
 
 type Pago = { fecha: string; medio: MedioPago; cobrado: number };
@@ -41,11 +43,18 @@ async function leerCaja(desde: string, hasta: string) {
   const [ventas, compras, manuales, cambios] = await Promise.all([
     prisma.venta.findMany({
       where: { anulada: false, creadoEn: { gte: rangoDelDia(desde).desde, lt: rangoDelDia(hasta).desde } },
-      select: { creadoEn: true, pagos: { select: { medio: true, cobrado: true } } },
+      select: {
+        id: true,
+        creadoEn: true,
+        pagos: { select: { medio: true, cobrado: true } },
+        cliente: { select: { nombre: true } },
+        vendedor: { select: { id: true, nombre: true } },
+      },
+      orderBy: { creadoEn: 'asc' },
     }),
     prisma.ingreso.findMany({
       where: { pagadoConCaja: true, fecha: { gte: aDate(desde), lt: aDate(hasta) } },
-      select: { id: true, fecha: true, total: true, nota: true, proveedor: { select: { nombre: true } } },
+      select: { id: true, fecha: true, creadoEn: true, total: true, nota: true, proveedor: { select: { nombre: true } } },
       orderBy: { id: 'asc' },
     }),
     prisma.movimientoCaja.findMany({
@@ -57,6 +66,7 @@ async function leerCaja(desde: string, hasta: string) {
         monto: true,
         medio: true,
         detalle: true,
+        creadoEn: true,
         concepto: { select: { id: true, nombre: true } },
         vendedor: { select: { id: true, nombre: true } },
       },
@@ -93,6 +103,7 @@ async function leerCaja(desde: string, hasta: string) {
         medio: m.medio,
         detalle: m.detalle,
         vendedor: m.vendedor,
+        momento: m.creadoEn.toISOString(),
       }),
     ),
     ...compras.map(
@@ -108,6 +119,7 @@ async function leerCaja(desde: string, hasta: string) {
         medio: 'EFECTIVO',
         detalle: [c.proveedor?.nombre, c.nota].filter(Boolean).join(' · ') || null,
         vendedor: null,
+        momento: c.creadoEn.toISOString(),
       }),
     ),
     ...cambios.map((p): MovimientoCaja => {
@@ -124,22 +136,50 @@ async function leerCaja(desde: string, hasta: string) {
         medio: p.medio,
         detalle: [`Venta N° ${p.cambio.ventaId}`, p.cambio.venta.cliente?.nombre].filter(Boolean).join(' · '),
         vendedor: p.cambio.vendedor,
+        momento: p.cambio.creadoEn.toISOString(),
       };
     }),
-  ];
+    ...ventas.map((v): MovimientoCaja => {
+      const cobros = v.pagos.map((p) => ({ medio: p.medio, cobrado: num(p.cobrado) }));
+      // El medio principal (el de más plata); si pagó con varios, el detalle los lista.
+      const principal = [...cobros].sort((a, b) => b.cobrado - a.cobrado)[0];
+      const varios = cobros.length > 1 ? cobros.map((p) => `${MEDIOS_PAGO[p.medio]} ${formatMonto(p.cobrado)}`).join() : null;
+      return {
+        clave: `v-${v.id}`,
+        id: v.id,
+        origen: 'VENTA',
+        tipo: 'INGRESO',
+        fecha: hoy(v.creadoEn),
+        concepto: `Venta N° ${v.id}`,
+        conceptoId: null,
+        monto: redondear(cobros.reduce((s, p) => s + p.cobrado, 0)),
+        medio: principal?.medio ?? 'EFECTIVO',
+        detalle: [v.cliente?.nombre, varios].filter(Boolean).join(' · ') || null,
+        vendedor: v.vendedor,
+        momento: v.creadoEn.toISOString(),
+      };
+    }),
+  ].sort((a, b) => a.momento.localeCompare(b.momento));
   return { pagos, cantidadVentas, movimientos };
 }
 
+/** Ingresos y gastos que se anotan (a mano o compras de mercadería): ni ventas ni cambios. */
+const esAnotado = (m: MovimientoCaja) => m.origen === 'MANUAL' || m.origen === 'MERCADERIA';
+const conSigno = (m: MovimientoCaja) => (m.tipo === 'INGRESO' ? m.monto : -m.monto);
+
 function totales(pagos: Pago[], movimientos: MovimientoCaja[]): TotalesCaja {
   const suma = (xs: number[]) => redondear(xs.reduce((s, x) => s + x, 0));
+  // Las ventas salen de los pagos; sus renglones en la lista son solo para mostrar.
+  const resto = movimientos.filter((m) => m.origen !== 'VENTA');
   const ventas = suma(pagos.map((p) => p.cobrado));
-  const otrosIngresos = suma(movimientos.filter((m) => m.tipo === 'INGRESO').map((m) => m.monto));
-  const gastos = suma(movimientos.filter((m) => m.tipo === 'GASTO').map((m) => m.monto));
+  const otrosIngresos = suma(resto.filter((m) => esAnotado(m) && m.tipo === 'INGRESO').map((m) => m.monto));
+  const gastos = suma(resto.filter((m) => esAnotado(m) && m.tipo === 'GASTO').map((m) => m.monto));
+  const cambios = suma(resto.filter((m) => m.origen === 'CAMBIO').map(conSigno));
   const efectivo = suma([
     ...pagos.filter((p) => p.medio === 'EFECTIVO').map((p) => p.cobrado),
-    ...movimientos.filter((m) => m.medio === 'EFECTIVO').map((m) => (m.tipo === 'INGRESO' ? m.monto : -m.monto)),
+    ...resto.filter((m) => m.medio === 'EFECTIVO').map(conSigno),
   ]);
-  return { ventas, otrosIngresos, gastos, saldo: redondear(ventas + otrosIngresos - gastos), efectivo };
+  return { ventas, otrosIngresos, gastos, cambios, saldo: redondear(ventas + otrosIngresos + cambios - gastos), efectivo };
 }
 
 function porMedio(pagos: Pago[]) {
@@ -194,11 +234,11 @@ cajaRouter.get(
         pagos.filter((p) => p.fecha === f),
         movimientos.filter((x) => x.fecha === f),
       );
-      if (t.ventas || t.otrosIngresos || t.gastos) dias.push({ fecha: f, ...t });
+      if (t.ventas || t.otrosIngresos || t.gastos || t.cambios) dias.push({ fecha: f, ...t });
     }
 
     const gastos = new Map<string, number>();
-    for (const x of movimientos) if (x.tipo === 'GASTO') gastos.set(x.concepto, redondear((gastos.get(x.concepto) ?? 0) + x.monto));
+    for (const x of movimientos) if (esAnotado(x) && x.tipo === 'GASTO') gastos.set(x.concepto, redondear((gastos.get(x.concepto) ?? 0) + x.monto));
 
     const body: CajaMes = {
       mes,

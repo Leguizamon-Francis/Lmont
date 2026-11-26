@@ -44,13 +44,13 @@ export const mesSchema = z
 // Respuestas de la API
 // ---------------------------------------------------------------------------
 
-/** Renglón de la caja de un día: cargado a mano o automático (compra de mercadería pagada con la caja). */
+/** Renglón de la caja de un día: una venta, un cambio, una compra de mercadería pagada con la caja o algo cargado a mano. */
 export type MovimientoCaja = {
-  /** "m-12" para los cargados a mano, "i-5" para ingresos de mercadería, "c-3" para pagos de cambios. */
+  /** "m-12" cargados a mano, "i-5" ingresos de mercadería, "c-3" pagos de cambios, "v-8" ventas. */
   clave: string;
   id: number;
-  /** CAMBIO: diferencia cobrada o devuelta en un cambio (id = venta). */
-  origen: 'MANUAL' | 'MERCADERIA' | 'CAMBIO';
+  /** CAMBIO: diferencia cobrada o devuelta en un cambio (id = venta). VENTA: lo cobrado en una venta (id = venta). */
+  origen: 'MANUAL' | 'MERCADERIA' | 'CAMBIO' | 'VENTA';
   tipo: TipoCaja;
   fecha: string;
   concepto: string;
@@ -59,6 +59,8 @@ export type MovimientoCaja = {
   medio: MedioPago;
   detalle: string | null;
   vendedor: { id: number; nombre: string } | null;
+  /** Cuándo se registró (ISO): ordena la lista del día y da la hora de ventas y cambios. */
+  momento: string;
 };
 
 export type TotalesCaja = {
@@ -66,8 +68,11 @@ export type TotalesCaja = {
   ventas: number;
   /** Ingresos cargados a mano. */
   otrosIngresos: number;
+  /** Gastos cargados a mano y compras de mercadería pagadas con la caja. */
   gastos: number;
-  /** ventas + otros ingresos − gastos. */
+  /** Neto de cambios y devoluciones: diferencias cobradas (+) menos plata devuelta (−). */
+  cambios: number;
+  /** ventas + otros ingresos + cambios − gastos. */
   saldo: number;
   /** Lo mismo pero solo lo que fue en efectivo: lo que tendría que haber en la caja. */
   efectivo: number;
