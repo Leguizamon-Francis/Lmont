@@ -31,7 +31,9 @@ import {
   parseMonto,
   textoPorcentaje,
   type CambioInput,
+  MOTIVOS_CAMBIO,
   type MedioPago,
+  type MotivoCambio,
   type PlanPago,
   type Vendedor,
   type VentaDetalle,
@@ -67,6 +69,7 @@ export function NuevoCambio() {
   const [cuotas, setCuotas] = useState(1);
   const [vendedorId, setVendedorId] = useState(leerVendedor);
   const [nota, setNota] = useState('');
+  const [motivo, setMotivo] = useState<MotivoCambio | ''>('');
   const [errores, setErrores] = useState<Record<string, string>>({});
 
   const v = venta.data;
@@ -155,6 +158,7 @@ export function NuevoCambio() {
     if (!devueltos.length) errs.devueltos = 'Marcá qué prendas trae el cliente';
     for (const l of llevadosOk) if (!l.p.ok) errs[`precio-${l.varianteId}`] = l.p.error;
     if (vendedores.data?.length && !vendedorId) errs.vendedor = 'Elegí quién atendió';
+    if (!motivo) errs.motivo = 'Elegí el motivo';
     const pagos = diferencia > 0 && medio ? [{ monto: diferencia }] : [];
     const e = errorPagosCambio(diferencia, pagos, diferencia < 0 ? medio || null : null);
     if (e && !Object.keys(errs).length) errs.pagos = diferencia !== 0 && !medio ? (diferencia > 0 ? 'Elegí cómo paga la diferencia' : 'Elegí cómo le devolvés la plata') : e;
@@ -168,6 +172,7 @@ export function NuevoCambio() {
     registrar.mutate({
       ventaId: v.id,
       vendedorId: vendedorId ? Number(vendedorId) : null,
+      motivo: motivo || null,
       nota,
       devueltos: devueltos.map((d) => ({ ventaItemId: d.id, cantidad: d.vuelve })),
       llevados: llevadosOk.map((l) => ({ varianteId: l.varianteId, cantidad: l.cantidad, precioUnitario: (l.p as { value: number }).value })),
@@ -339,6 +344,21 @@ export function NuevoCambio() {
           )}
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              select
+              label="Motivo"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value as MotivoCambio)}
+              error={!!errores.motivo}
+              helperText={errores.motivo}
+              sx={{ width: { sm: 240 } }}
+            >
+              {(Object.keys(MOTIVOS_CAMBIO) as MotivoCambio[]).map((m) => (
+                <MenuItem key={m} value={m}>
+                  {MOTIVOS_CAMBIO[m]}
+                </MenuItem>
+              ))}
+            </TextField>
             {!!vendedores.data?.length && (
               <TextField
                 select
@@ -356,7 +376,7 @@ export function NuevoCambio() {
                 ))}
               </TextField>
             )}
-            <TextField label="Nota (opcional)" placeholder="Ej: le quedaba chico" value={nota} onChange={(e) => setNota(e.target.value)} sx={{ flex: 1 }} />
+            <TextField label="Nota (opcional)" placeholder="Ej: pidió un talle más" value={nota} onChange={(e) => setNota(e.target.value)} sx={{ flex: 1 }} />
           </Stack>
 
           {registrar.error && <Alert severity="error">{mensajeDeError(registrar.error)}</Alert>}

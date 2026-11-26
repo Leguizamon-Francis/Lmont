@@ -98,6 +98,7 @@ cambiosRouter.post(
         data: {
           ventaId: d.ventaId,
           vendedorId: d.vendedorId ?? null,
+          motivo: d.motivo ?? null,
           nota: d.nota,
           totalDevuelto,
           totalLlevado,

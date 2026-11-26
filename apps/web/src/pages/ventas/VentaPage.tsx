@@ -19,6 +19,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import {
+  MOTIVOS_CAMBIO,
   esDevolucion,
   formatFecha,
   formatHora,
@@ -209,7 +210,9 @@ function Cambio({ c }: { c: CambioDetalle }) {
           <b>Se llevó:</b> {c.llevados.map(prenda).join(', ')} ({formatMonto(c.totalLlevado)})
         </Typography>
       )}
-      {c.nota && <Typography color="text.secondary">{c.nota}</Typography>}
+      {(c.motivo || c.nota) && (
+        <Typography color="text.secondary">{[c.motivo && `Motivo: ${MOTIVOS_CAMBIO[c.motivo]}`, c.nota].filter(Boolean).join(' · ')}</Typography>
+      )}
     </Stack>
   );
 }

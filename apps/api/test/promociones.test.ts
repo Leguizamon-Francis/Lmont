@@ -96,7 +96,7 @@ describe('promociones', () => {
     await agent.post('/api/ventas').send(ventaCombo(p.id)).expect(400);
     // La venta y el reporte conservan el nombre que tenía.
     expect((await agent.get(`/api/ventas/${v.id}`).expect(200)).body.promociones[0]).toMatchObject({ nombre: 'Combo verano', descuento: 10000 });
-    expect((await agent.get('/api/reportes/mes').expect(200)).body.promociones).toEqual([
+    expect((await agent.get('/api/reportes/resumen').expect(200)).body.promociones).toEqual([
       { promocionId: p.id, nombre: 'Combo verano', veces: 1, precio: 30000, descuento: 10000 },
     ]);
     // Se puede crear otra con el mismo nombre.

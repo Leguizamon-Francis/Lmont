@@ -11,10 +11,23 @@ import type { VarianteEncontrada } from './catalogo.js';
  * - Si lo que se lleva vale más, la diferencia se cobra con `pagos`.
  * - Si vale menos, se le devuelve la diferencia con `medioReintegro`.
  */
+/** Por qué el cliente cambia o devuelve: alimenta el reporte de cambios. */
+export const MOTIVOS_CAMBIO = {
+  TALLE: 'No le quedó bien el talle',
+  COLOR: 'Quería otro color',
+  FALLA: 'Falla o defecto',
+  GUSTO: 'No le gustó',
+  REGALO: 'Era un regalo',
+  OTRO: 'Otro',
+} as const;
+export type MotivoCambio = keyof typeof MOTIVOS_CAMBIO;
+export const motivoCambioSchema = z.enum(Object.keys(MOTIVOS_CAMBIO) as [MotivoCambio, ...MotivoCambio[]], { error: 'Elegí el motivo' });
+
 export const cambioSchema = z
   .object({
     ventaId: idSchema,
     vendedorId: idSchema.optional().nullable(),
+    motivo: motivoCambioSchema.optional().nullable(),
     nota: textoOpcional(500),
     devueltos: z
       .array(z.object({ ventaItemId: idSchema, cantidad: cantidadSchema(1) }), { error: 'Elegí qué prendas trae el cliente' })
@@ -75,6 +88,7 @@ export type CambioDetalle = {
   ventaId: number;
   creadoEn: string;
   vendedor: { id: number; nombre: string } | null;
+  motivo: MotivoCambio | null;
   nota: string | null;
   totalDevuelto: number;
   totalLlevado: number;

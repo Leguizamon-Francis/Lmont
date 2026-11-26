@@ -1,4 +1,4 @@
-import { precioEfectivo, type CambioDetalle, CambioResumen, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
+import { precioEfectivo, type CambioDetalle, CambioResumen, type MotivoCambio, VentaDetalle, VentaPago, VentaResumen } from '@lmont/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { num, selectEncontrada, varianteEncontrada } from '../catalogo/serializar.js';
 import { noEncontrado } from '../http/errors.js';
@@ -127,6 +127,7 @@ export const selectCambio = {
   id: true,
   ventaId: true,
   creadoEn: true,
+  motivo: true,
   nota: true,
   totalDevuelto: true,
   totalLlevado: true,
@@ -149,6 +150,7 @@ export function cambioDetalle(c: Prisma.CambioGetPayload<{ select: typeof select
     ventaId: c.ventaId,
     creadoEn: c.creadoEn.toISOString(),
     vendedor: c.vendedor,
+    motivo: (c.motivo as MotivoCambio | null) ?? null,
     nota: c.nota,
     totalDevuelto: num(c.totalDevuelto),
     totalLlevado: num(c.totalLlevado),

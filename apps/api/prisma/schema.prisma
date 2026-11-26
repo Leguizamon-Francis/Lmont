@@ -453,6 +453,8 @@ model Cambio {
   totalLlevado  Decimal           @map("total_llevado") @db.Decimal(12, 2)
   /// totalLlevado − totalDevuelto: positivo paga el cliente, negativo se le reintegra.
   diferencia    Decimal           @db.Decimal(12, 2)
+  /// Por qué se cambió (MOTIVOS_CAMBIO en shared). Null en los cambios viejos.
+  motivo        String?
   nota          String?
   devueltos     CambioDevuelto[]
   llevados      CambioLlevado[]
